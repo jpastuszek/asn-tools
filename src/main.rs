@@ -44,10 +44,10 @@ fn load_db<'d, R: io::Read>(data: &'d mut csv::Reader<R>) -> impl Iterator<Item=
 
 // https://iptoasn.com/
 fn main() {
-    print!("Loading DB... ");
+    eprint!("Loading DB... ");
     let mut rdr = csv::ReaderBuilder::new().delimiter(b'\t').from_reader(File::open("ip2asn-v4.tsv").or_failed_to("open DB file"));
     let records = load_db(&mut rdr).collect::<Vec<_>>();
-    println!("done");
+    eprintln!("done");
     
     for lookup_ip in csv::ReaderBuilder::new().from_reader(io::stdin())
         .records().or_failed_to("read lookup IP from stdin")
