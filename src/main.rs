@@ -18,11 +18,17 @@ use superslice::Ext;
 
 #[derive(Debug)]
 struct AnsRecord {
-    base: u32,
-    net: Ipv4Net,
+    ip: u32,
+    prefix_len: u8,
     country: String,
     as_number: u32,
     owner: String,
+}
+
+impl AnsRecord {
+    fn network(&self) -> Ipv4Net {
+        Ipv4Net::new(self.ip.into(), self.prefix_len).expect("Bad network")
+    }
 }
 
 fn load_db<'d, R: io::Read>(data: &'d mut csv::Reader<R>) -> impl Iterator<Item=AnsRecord> + 'd {
@@ -41,8 +47,8 @@ fn load_db<'d, R: io::Read>(data: &'d mut csv::Reader<R>) -> impl Iterator<Item=
 
             Ipv4Subnets::new(range_start, range_end, 8).map(move |net| {
                 AnsRecord {
-                    base: net.network().into(),
-                    net,
+                    ip: net.network().into(),
+                    prefix_len: net.prefix_len(),
                     country: country.clone(),
                     as_number,
                     owner: owner.clone(),
@@ -69,7 +75,7 @@ fn main() {
     let mut rdr = csv::ReaderBuilder::new().delimiter(b'\t').from_reader(File::open("ip2asn-v4.tsv").or_failed_to("open DB file"));
     let mut records = load_db(&mut rdr).collect::<Vec<_>>();
     info!("DB loaded; sorting...");
-    records.sort_by_key(|record| record.base);
+    records.sort_by_key(|record| record.ip);
     info!("DB ready");
 
     let mut stdin_csv = if args.ips.is_empty() {
@@ -87,13 +93,13 @@ fn main() {
     for lookup_ip in ips 
         .map(|ip| Ipv4Addr::from_str(&ip)).or_failed_to("parse lookup IP") {
 
-        let index = records.upper_bound_by_key(&lookup_ip.into(), |record| record.base);
+        let index = records.upper_bound_by_key(&lookup_ip.into(), |record| record.ip);
         if index == 0 {
             continue;
         }
         let record = &records[index - 1];
-        if record.net.contains(&lookup_ip) {
-            println!("{:?}: {:?} > {} {} {}", lookup_ip, record.net, record.country, record.as_number, record.owner);
+        if record.network().contains(&lookup_ip) {
+            println!("{:?}: {:?} > {} {} {}", lookup_ip, record.network(), record.country, record.as_number, record.owner);
         }
     }
 }
