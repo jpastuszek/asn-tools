@@ -11,6 +11,7 @@ extern crate superslice;
 extern crate serde_derive;
 extern crate serde;
 extern crate bincode;
+extern crate itertools;
 
 use cotton::prelude::*;
 use std::io;
@@ -20,6 +21,7 @@ use std::net::Ipv4Addr;
 use std::str::FromStr;
 use superslice::Ext;
 use bincode::{serialize_into, deserialize_from};
+use itertools::Itertools;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct AnsRecord {
@@ -103,16 +105,20 @@ fn main() {
             csv.records().or_failed_to("read lookup IP from stdin")
             .map(|record| record[0].to_owned())));
     
-    for lookup_ip in ips 
-        .map(|ip| Ipv4Addr::from_str(&ip)).or_failed_to("parse lookup IP") {
-
+    let mut matches = ips.map(|ip| Ipv4Addr::from_str(&ip)).or_failed_to("parse lookup IP").filter_map(|lookup_ip| {
         let index = records.upper_bound_by_key(&lookup_ip.into(), |record| record.ip);
-        if index == 0 {
-            continue;
+        if index != 0 {
+            let record = &records[index - 1];
+            if record.network().contains(&lookup_ip) {
+                return Some((lookup_ip, record))
+            }
         }
-        let record = &records[index - 1];
-        if record.network().contains(&lookup_ip) {
-            println!("{:?}: {:?} > {} {} {}", lookup_ip, record.network(), record.country, record.as_number, record.owner);
-        }
+        None
+    }).collect::<Vec<_>>();
+
+    matches.sort_by_key(|(_, record)| record.ip);
+
+    for (lookup_ip, record) in matches.iter().unique_by(|(_, record)| record.ip) {
+        println!("'{:?}', # {} {} {} ({})", record.network(), record.country, record.as_number, record.owner, lookup_ip);
     }
 }
