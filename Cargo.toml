@@ -10,3 +10,4 @@ ipnet = "2.0.0"
 cotton = { git = "https://github.com/jpastuszek/cotton.git" }
 structopt = "0.2.12"
 log = "0.4.6"
+superslice = "0.1.0"
