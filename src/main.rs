@@ -1,10 +1,15 @@
+extern crate cotton;
+#[macro_use]
+extern crate structopt;
+#[macro_use]
+extern crate log;
 extern crate csv;
 extern crate problem;
 extern crate ipnet;
 
+use cotton::prelude::*;
 use std::io;
 use std::fs::File;
-use problem::*;
 use ipnet::*;
 use std::net::Ipv4Addr;
 use std::str::FromStr;
@@ -42,16 +47,39 @@ fn load_db<'d, R: io::Read>(data: &'d mut csv::Reader<R>) -> impl Iterator<Item=
         })
 }
 
+#[derive(Debug, StructOpt)]
+struct Cli {
+    #[structopt(flatten)]
+    logging: LoggingOpt,
+
+    #[structopt(name = "IP")]
+    ips: Vec<String>,
+}
+
 // https://iptoasn.com/
 fn main() {
-    eprint!("Loading DB... ");
+    let args = Cli::from_args();
+    init_logger(&args.logging, vec![module_path!()]);
+    info!("Loading DB... ");
+
     let mut rdr = csv::ReaderBuilder::new().delimiter(b'\t').from_reader(File::open("ip2asn-v4.tsv").or_failed_to("open DB file"));
     let records = load_db(&mut rdr).collect::<Vec<_>>();
-    eprintln!("done");
+    info!("DB loaded");
+
+    let mut stdin_csv = if args.ips.is_empty() {
+        Some(csv::ReaderBuilder::new()
+            .from_reader(io::stdin()))
+    } else {
+        None
+    };
+
+    let ips = args.ips.into_iter()
+        .chain(stdin_csv.iter_mut().flat_map(|csv|
+            csv.records().or_failed_to("read lookup IP from stdin")
+            .map(|record| record[0].to_owned())));
     
-    for lookup_ip in csv::ReaderBuilder::new().from_reader(io::stdin())
-        .records().or_failed_to("read lookup IP from stdin")
-        .map(|record| Ipv4Addr::from_str(&record[0])).or_failed_to("parse lookup IP") {
+    for lookup_ip in ips 
+        .map(|ip| Ipv4Addr::from_str(&ip)).or_failed_to("parse lookup IP") {
 
         for record in &records {
             if record.net.contains(&lookup_ip) {
