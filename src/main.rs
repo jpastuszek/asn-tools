@@ -7,6 +7,10 @@ extern crate csv;
 extern crate problem;
 extern crate ipnet;
 extern crate superslice;
+#[macro_use]
+extern crate serde_derive;
+extern crate serde;
+extern crate bincode;
 
 use cotton::prelude::*;
 use std::io;
@@ -15,8 +19,9 @@ use ipnet::*;
 use std::net::Ipv4Addr;
 use std::str::FromStr;
 use superslice::Ext;
+use bincode::{serialize_into, deserialize_from};
 
-#[derive(Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 struct AnsRecord {
     ip: u32,
     prefix_len: u8,
@@ -71,11 +76,19 @@ fn main() {
     let args = Cli::from_args();
     init_logger(&args.logging, vec![module_path!()]);
     info!("Loading DB... ");
-
-    let mut rdr = csv::ReaderBuilder::new().delimiter(b'\t').from_reader(File::open("ip2asn-v4.tsv").or_failed_to("open DB file"));
-    let mut records = load_db(&mut rdr).collect::<Vec<_>>();
-    info!("DB loaded; sorting...");
-    records.sort_by_key(|record| record.ip);
+    let records = match File::open("db.bincode") {
+        Ok(db_file) => deserialize_from(BufReader::new(db_file)).or_failed_to("read bincode DB file"),
+        Err(_) => {
+            let mut rdr = csv::ReaderBuilder::new().delimiter(b'\t').from_reader(BufReader::new(File::open("ip2asn-v4.tsv").or_failed_to("open DB file")));
+            let mut records = load_db(&mut rdr).collect::<Vec<_>>();
+            info!("CSV DB loaded; sorting...");
+            records.sort_by_key(|record| record.ip);
+            info!("writing bincode DB...");
+            let db_file = File::create("db.bincode").or_failed_to("open bincode DB for writing");
+            serialize_into(db_file, &records).or_failed_to("write bincode DB to file");
+            records
+        }
+    };
     info!("DB ready");
 
     let mut stdin_csv = if args.ips.is_empty() {

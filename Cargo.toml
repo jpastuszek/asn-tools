@@ -11,3 +11,6 @@ cotton = { git = "https://github.com/jpastuszek/cotton.git" }
 structopt = "0.2.12"
 log = "0.4.6"
 superslice = "0.1.0"
+serde = "1.0.80"
+serde_derive = "1.0.80"
+bincode = "1.0.1"
