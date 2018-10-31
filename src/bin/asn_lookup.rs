@@ -77,7 +77,7 @@ fn db_file_path() -> Result<PathBuf, Problem> {
 
 fn cache_db(records: &[AnsRecord]) -> Result<(), Problem> {
     let db_file_path = db_file_path()?;
-    info!("Caching DB to: {}", db_file_path.display());
+    debug!("Caching DB to: {}", db_file_path.display());
 
     let db_file = File::create(&db_file_path).problem_while_with(|| format!("creating DB file: {}", db_file_path.display()))?;
     serialize_into(BufWriter::new(db_file), records).problem_while("serilizing DB to bincode")?;
@@ -89,7 +89,7 @@ fn load_cached_db() -> Result<Option<Vec<AnsRecord>>, Problem> {
     let db_file_path = db_file_path()?;
 
     if db_file_path.exists() {
-        info!("Loading cached DB from: {}", db_file_path.display());
+        debug!("Loading cached DB from: {}", db_file_path.display());
         let db_file = File::open(&db_file_path)?;
         Ok(Some(deserialize_from(BufReader::new(db_file)).problem_while("read bincode DB file")?))
     } else {
@@ -113,7 +113,7 @@ fn main() {
     let records = match load_cached_db().or_failed_to("load cached DB") {
         Some(records) => records,
         None => {
-            info!("Loading DB from CSV... ");
+            debug!("Loading DB from CSV... ");
             let mut rdr = csv::ReaderBuilder::new().delimiter(b'\t').from_reader(BufReader::new(File::open("ip2asn-v4.tsv").or_failed_to("open DB file")));
             let mut records = load_ip_to_asn_csv(&mut rdr).collect::<Vec<_>>();
             records.sort_by_key(|record| record.ip);
