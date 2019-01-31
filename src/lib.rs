@@ -5,6 +5,10 @@ use std::net::Ipv4Addr;
 use std::io;
 use std::fmt;
 use std::error::Error;
+use std::io::BufReader;
+use std::fs::File;
+use std::path::Path;
+use superslice::Ext;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AnsRecord {
@@ -74,9 +78,9 @@ pub fn read_asn_csv<'d, R: io::Read>(data: &'d mut csv::Reader<R>) -> impl Itera
         .map(|record| record.map_err(Into::<AsnCsvParseError>::into))
         .map(|record| {
             record.and_then(|record| {
-                let range_start: Ipv4Addr = record[0].parse().map_error_context("parsing range_start IP")?;
-                let range_end: Ipv4Addr = record[1].parse().map_error_context("parsing range_end IP")?;
-                let as_number: u32 = record[2].parse().map_error_context("parsing as_number")?;
+                let range_start: Ipv4Addr = record[0].parse().wrap_error_while("parsing range_start IP")?;
+                let range_end: Ipv4Addr = record[1].parse().wrap_error_while("parsing range_end IP")?;
+                let as_number: u32 = record[2].parse().wrap_error_while("parsing as_number")?;
                 let country = record[3].to_owned();
                 let owner = record[4].to_owned();
                 Ok((range_start, range_end, as_number, country, owner))
@@ -106,4 +110,53 @@ pub fn read_asn_csv<'d, R: io::Read>(data: &'d mut csv::Reader<R>) -> impl Itera
 
             records.into_iter().flatten().map(Ok).chain(errors.into_iter().map(Err))
         })
+}
+
+pub struct AsnDb(Vec<AnsRecord>);
+
+#[derive(Debug)]
+pub enum AsnDbError {
+    CsvError(AsnCsvParseError),
+    FileError(io::Error, &'static str),
+}
+
+impl fmt::Display for AsnDbError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            AsnDbError::CsvError(err) => write!(f, "error opening ASN DB from CSV file: {}", err),
+            AsnDbError::FileError(err, context) => write!(f, "error opening ASN DB from file while {}: {}", context, err),
+        }
+    }
+}
+
+impl From<AsnCsvParseError> for AsnDbError {
+    fn from(err: AsnCsvParseError) -> AsnDbError {
+        AsnDbError::CsvError(err)
+    }
+}
+
+impl From<ErrorContext<io::Error, &'static str>> for AsnDbError {
+    fn from(err: ErrorContext<io::Error, &'static str>) -> AsnDbError {
+        AsnDbError::FileError(err.error, err.context)
+    }
+}
+
+impl AsnDb {
+    pub fn form_csv_file(path: impl AsRef<Path>) -> Result<AsnDb, AsnDbError> {
+        let mut rdr = csv::ReaderBuilder::new().delimiter(b'\t').from_reader(BufReader::new(File::open(path).wrap_error_while("opending CSV file")?));
+        let mut records = read_asn_csv(&mut rdr).collect::<Result<Vec<_>, _>>()?;
+        records.sort_by_key(|record| record.ip);
+        Ok(AsnDb(records))
+    }
+
+    pub fn lookup(&self, ip: Ipv4Addr) -> Option<&AnsRecord> {
+        let index = self.0.upper_bound_by_key(&ip.into(), |record| record.ip);
+        if index != 0 {
+            let record = &self.0[index - 1];
+            if record.network().contains(&ip) {
+                return Some(record)
+            }
+        }
+        None
+    }
 }

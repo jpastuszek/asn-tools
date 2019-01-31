@@ -176,7 +176,7 @@ dependencies = [
 [[package]]
 name = "error-context"
 version = "0.1.0"
-source = "git+https://github.com/jpastuszek/error-context.git#b69ab805f84bd594a5152a2a0368509a517bfbe1"
+source = "git+https://github.com/jpastuszek/error-context.git#35758b6490b7356f7d7aaf025027c74b9a5cec9d"
 
 [[package]]
 name = "fuchsia-zircon"

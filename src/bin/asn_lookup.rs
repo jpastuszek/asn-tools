@@ -2,10 +2,10 @@ use cotton::prelude::*;
 use log::*;
 use std::io;
 use std::fs::File;
+use std::path::Path;
 use std::net::Ipv4Addr;
 use std::path::PathBuf;
 use std::str::FromStr;
-use superslice::Ext;
 use bincode::{serialize_into, deserialize_from};
 use itertools::Itertools;
 use app_dirs::*;
@@ -55,17 +55,14 @@ fn main() {
     let args = Cli::from_args();
     init_logger(&args.logging, vec![module_path!()]);
 
-    let records = match load_cached_db().or_failed_to("load cached DB") {
-        Some(records) => records,
-        None => {
-            debug!("Loading DB from CSV... ");
-            let mut rdr = csv::ReaderBuilder::new().delimiter(b'\t').from_reader(BufReader::new(File::open("ip2asn-v4.tsv").or_failed_to("open DB file")));
-            let mut records = read_asn_csv(&mut rdr).collect::<Result<Vec<_>, _>>().or_failed_to("read ASN database CSV file");
-            records.sort_by_key(|record| record.ip);
-            cache_db(&records).or_failed_to("cache records DB");
-            records
-        }
-    };
+    // let records = match load_cached_db().or_failed_to("load cached DB") {
+    //     Some(records) => records,
+    //     None => {
+    //         debug!("Loading DB from CSV... ");
+    //         AsnDb::form_csv_file(Path::new("ip2asn-v4.tsv")).or_failed_to("open DB file")
+    //     }
+    // };
+    let asn_db = AsnDb::form_csv_file(Path::new("ip2asn-v4.tsv")).or_failed_to("open DB file");
 
     let mut stdin_csv = if args.ips.is_empty() {
         Some(csv::ReaderBuilder::new()
@@ -80,14 +77,7 @@ fn main() {
             .map(|record| record[0].to_owned())));
     
     let mut matches = ips.map(|ip| Ipv4Addr::from_str(&ip)).or_failed_to("parse lookup IP").map(|lookup_ip| {
-        let index = records.upper_bound_by_key(&lookup_ip.into(), |record| record.ip);
-        if index != 0 {
-            let record = &records[index - 1];
-            if record.network().contains(&lookup_ip) {
-                return (lookup_ip, Some(record))
-            }
-        }
-        (lookup_ip, None)
+        (lookup_ip, asn_db.lookup(lookup_ip))
     }).collect::<Vec<_>>();
 
     matches.sort_by_key(|(lookup_ip, _)| lookup_ip.clone());
