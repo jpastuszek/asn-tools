@@ -40,14 +40,17 @@ fn load_cached_db() -> Result<Option<AsnDb>, Problem> {
     })
 }
 
+/// Lookup IP in ASN database
 #[derive(Debug, StructOpt)]
 struct Cli {
     #[structopt(flatten)]
     logging: LoggingOpt,
 
+    /// Path to TSV file to build cache from or store downloaded database
     #[structopt(long = "ip2asn-tsv-path", default_value = "ip2asn-v4.tsv")]
     tsv_path: PathBuf,
 
+    /// URL to TSV file containing ip2asn database for update
     #[structopt(long = "ip2asn-tsv-url", default_value = "https://iptoasn.com/data/ip2asn-v4.tsv.gz")]
     tsv_url: String,
 
@@ -55,6 +58,7 @@ struct Cli {
     #[structopt(long = "update")]
     update: bool,
 
+    /// List of IP addresses to lookup (can also be read from stdin, one per line)
     #[structopt(name = "IP")]
     ips: Vec<String>,
 }
