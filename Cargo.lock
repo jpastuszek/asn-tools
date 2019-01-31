@@ -146,13 +146,13 @@ dependencies = [
 [[package]]
 name = "cotton"
 version = "0.1.0"
-source = "git+https://github.com/jpastuszek/cotton.git#cb526992371fe2def0fe51cf84505c88d59c81a8"
+source = "git+https://github.com/jpastuszek/cotton.git#bafe19658502e53f4ca84240d63e0d5640fed654"
 dependencies = [
  "boolinator 2.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "itertools 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "loggerv 0.7.1 (git+https://github.com/jpastuszek/loggerv.git)",
- "problem 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "problem 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "structopt 0.2.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "tap 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -290,7 +290,7 @@ dependencies = [
 
 [[package]]
 name = "problem"
-version = "1.0.0"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "backtrace 0.3.13 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -613,7 +613,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum memchr 2.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "4b3629fe9fdbff6daa6c33b90f7c08355c1aca05a3d01fa8063b822fcf185f3b"
 "checksum ole32-sys 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "5d2c49021782e5233cd243168edfa8037574afed4eba4bbaf538b3d8d1789d8c"
 "checksum problem 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "d0a5751c3bcbfc1fa27b2c967e9619e5a4444c1bf49587eceeeda63d22bf118d"
-"checksum problem 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "ecffa19a9b6e76d2433d56fcbf7d7383d09c259f9c31c7879db0a65b38b17009"
+"checksum problem 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "f25afbe08e1ee9a13ef60a98293244fe8439cad67e4c4e1ab93d2234f4472e68"
 "checksum proc-macro2 0.4.19 (registry+https://github.com/rust-lang/crates.io-index)" = "ffe022fb8c8bd254524b0b3305906c1921fa37a84a644e29079a9e62200c3901"
 "checksum pulldown-cmark 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)" = "d6fdf85cda6cadfae5428a54661d431330b312bc767ddbc57adbedc24da66e32"
 "checksum quote 0.6.8 (registry+https://github.com/rust-lang/crates.io-index)" = "dd636425967c33af890042c483632d33fa7a18f19ad1d7ea72e8998c6ef8dea5"

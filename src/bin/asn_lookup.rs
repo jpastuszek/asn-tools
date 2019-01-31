@@ -19,17 +19,18 @@ fn db_file_path() -> Result<PathBuf, Problem> {
 fn cache_db(asn_db: &AsnDb) -> Result<(), Problem> {
     let db_file_path = db_file_path()?;
     debug!("Caching DB to: {}", db_file_path.display());
-    asn_db.store(db_file_path).map_problem()
+    asn_db.store(db_file_path)?;
+    Ok(())
 }
 
 fn load_cached_db() -> Result<Option<AsnDb>, Problem> {
     let db_file_path = db_file_path()?;
-    if db_file_path.exists() {
+    Ok(if db_file_path.exists() {
         debug!("Loading cached DB from: {}", db_file_path.display());
-        AsnDb::from_stored_file(db_file_path).map(Some).map_problem()
+        Some(AsnDb::from_stored_file(db_file_path)?)
     } else {
-        Ok(None)
-    }
+        None
+    })
 }
 
 #[derive(Debug, StructOpt)]
@@ -52,7 +53,7 @@ fn main() {
         Some(records) => records,
         None => {
             debug!("Loading DB from CSV: {}", args.tsv_path.display());
-            AsnDb::form_csv_file(args.tsv_path).tap_ok(|asn_db| cache_db(asn_db)).or_failed_to("open DB file")
+            AsnDb::form_csv_file(args.tsv_path).tap_ok(|asn_db| cache_db(asn_db).or_failed_to("cache DB file")).or_failed_to("open DB file")
         }
     };
 
