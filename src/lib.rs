@@ -26,55 +26,55 @@ impl AnsRecord {
 }
 
 #[derive(Debug)]
-pub enum AsnCsvParseError {
-    CsvError(csv::Error),
+pub enum AsnTsvParseError {
+    TsvError(csv::Error),
     AddrFieldParseError(std::net::AddrParseError, &'static str),
     IntFieldParseError(std::num::ParseIntError, &'static str),
 }
 
-impl fmt::Display for AsnCsvParseError {
+impl fmt::Display for AsnTsvParseError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            AsnCsvParseError::CsvError(_) => write!(f, "CSV format error"),
-            AsnCsvParseError::AddrFieldParseError(_, context) => write!(f, "error parsing IP address while {}", context),
-            AsnCsvParseError::IntFieldParseError(_, context) => write!(f, "error parsing integer while {}", context),
+            AsnTsvParseError::TsvError(_) => write!(f, "TSV format error"),
+            AsnTsvParseError::AddrFieldParseError(_, context) => write!(f, "error parsing IP address while {}", context),
+            AsnTsvParseError::IntFieldParseError(_, context) => write!(f, "error parsing integer while {}", context),
         }
     }
 }
 
-impl Error for AsnCsvParseError {
+impl Error for AsnTsvParseError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
-            AsnCsvParseError::CsvError(err) => Some(err),
-            AsnCsvParseError::AddrFieldParseError(err, _) => Some(err),
-            AsnCsvParseError::IntFieldParseError(err, _) => Some(err),
+            AsnTsvParseError::TsvError(err) => Some(err),
+            AsnTsvParseError::AddrFieldParseError(err, _) => Some(err),
+            AsnTsvParseError::IntFieldParseError(err, _) => Some(err),
         }
     }
 }
 
-impl From<csv::Error> for AsnCsvParseError {
-    fn from(error: csv::Error) -> AsnCsvParseError {
-        AsnCsvParseError::CsvError(error)
+impl From<csv::Error> for AsnTsvParseError {
+    fn from(error: csv::Error) -> AsnTsvParseError {
+        AsnTsvParseError::TsvError(error)
     }
 }
 
-impl From<ErrorContext<std::net::AddrParseError, &'static str>> for AsnCsvParseError {
-    fn from(ec: ErrorContext<std::net::AddrParseError, &'static str>) -> AsnCsvParseError {
-        AsnCsvParseError::AddrFieldParseError(ec.error, ec.context)
+impl From<ErrorContext<std::net::AddrParseError, &'static str>> for AsnTsvParseError {
+    fn from(ec: ErrorContext<std::net::AddrParseError, &'static str>) -> AsnTsvParseError {
+        AsnTsvParseError::AddrFieldParseError(ec.error, ec.context)
     }
 }
 
 
-impl From<ErrorContext<std::num::ParseIntError, &'static str>> for AsnCsvParseError {
-    fn from(ec: ErrorContext<std::num::ParseIntError, &'static str>) -> AsnCsvParseError {
-        AsnCsvParseError::IntFieldParseError(ec.error, ec.context)
+impl From<ErrorContext<std::num::ParseIntError, &'static str>> for AsnTsvParseError {
+    fn from(ec: ErrorContext<std::num::ParseIntError, &'static str>) -> AsnTsvParseError {
+        AsnTsvParseError::IntFieldParseError(ec.error, ec.context)
     }
 }
 
 // TODO: try this https://docs.rs/eytzinger/1.0.1/eytzinger/
 
-/// Reads ASN database CSV file as provided at https://iptoasn.com/
-pub fn read_asn_csv<'d, R: io::Read>(data: &'d mut csv::Reader<R>) -> impl Iterator<Item=Result<AnsRecord, AsnCsvParseError>> + 'd {
+/// Reads ASN database TSV file as provided at https://iptoasn.com/
+pub fn read_asn_tsv<'d, R: io::Read>(data: &'d mut csv::Reader<R>) -> impl Iterator<Item=Result<AnsRecord, AsnTsvParseError>> + 'd {
     data.records()
         .filter(|record| {
             if let Ok(record) = record {
@@ -84,7 +84,7 @@ pub fn read_asn_csv<'d, R: io::Read>(data: &'d mut csv::Reader<R>) -> impl Itera
                 true
             }
         })
-        .map(|record| record.map_err(Into::<AsnCsvParseError>::into))
+        .map(|record| record.map_err(Into::<AsnTsvParseError>::into))
         .map(|record| {
             record.and_then(|record| {
                 let range_start: Ipv4Addr = record[0].parse().wrap_error_while("parsing range_start IP")?;
@@ -114,7 +114,7 @@ pub fn read_asn_csv<'d, R: io::Read>(data: &'d mut csv::Reader<R>) -> impl Itera
 
             match data {
                 Ok(data) => records = Some(data),
-                Err(err) => errors = Some(AsnCsvParseError::from(err)),
+                Err(err) => errors = Some(AsnTsvParseError::from(err)),
             }
 
             records.into_iter().flatten().map(Ok).chain(errors.into_iter().map(Err))
@@ -125,7 +125,7 @@ pub struct AsnDb(Vec<AnsRecord>);
 
 #[derive(Debug)]
 pub enum AsnDbError {
-    CsvError(AsnCsvParseError),
+    TsvError(AsnTsvParseError),
     FileError(io::Error, &'static str),
     BincodeError(bincode::Error, &'static str),
 }
@@ -133,7 +133,7 @@ pub enum AsnDbError {
 impl fmt::Display for AsnDbError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            AsnDbError::CsvError(_) => write!(f, "error opening ASN DB from CSV file"),
+            AsnDbError::TsvError(_) => write!(f, "error opening ASN DB from TSV file"),
             AsnDbError::FileError(_, context) => write!(f, "error opening ASN DB from file while {}", context),
             AsnDbError::BincodeError(_, context) => write!(f, "error (de)serializing ASN DB to bincode format while {}", context),
         }
@@ -143,16 +143,16 @@ impl fmt::Display for AsnDbError {
 impl Error for AsnDbError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
-            AsnDbError::CsvError(err) => Some(err),
+            AsnDbError::TsvError(err) => Some(err),
             AsnDbError::FileError(err, _) => Some(err),
             AsnDbError::BincodeError(err, _) => Some(err),
         }
     }
 }
 
-impl From<AsnCsvParseError> for AsnDbError {
-    fn from(err: AsnCsvParseError) -> AsnDbError {
-        AsnDbError::CsvError(err)
+impl From<AsnTsvParseError> for AsnDbError {
+    fn from(err: AsnTsvParseError) -> AsnDbError {
+        AsnDbError::TsvError(err)
     }
 }
 
@@ -169,9 +169,9 @@ impl From<ErrorContext<bincode::Error, &'static str>> for AsnDbError {
 }
 
 impl AsnDb {
-    pub fn form_csv_file(path: impl AsRef<Path>) -> Result<AsnDb, AsnDbError> {
-        let mut rdr = csv::ReaderBuilder::new().delimiter(b'\t').from_reader(BufReader::new(File::open(path).wrap_error_while("opending CSV file")?));
-        let mut records = read_asn_csv(&mut rdr).collect::<Result<Vec<_>, _>>()?;
+    pub fn form_tsv_file(path: impl AsRef<Path>) -> Result<AsnDb, AsnDbError> {
+        let mut rdr = csv::ReaderBuilder::new().delimiter(b'\t').from_reader(BufReader::new(File::open(path).wrap_error_while("opending TSV file")?));
+        let mut records = read_asn_tsv(&mut rdr).collect::<Result<Vec<_>, _>>()?;
         records.sort_by_key(|record| record.ip);
         Ok(AsnDb(records))
     }

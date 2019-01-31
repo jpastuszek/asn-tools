@@ -81,8 +81,8 @@ fn main() {
     let asn_db = match load_cached_db().or_failed_to("load cached DB") {
         Some(records) => records,
         None => {
-            debug!("Loading DB from CSV: {}", args.tsv_path.display());
-            AsnDb::form_csv_file(args.tsv_path).tap_ok(|asn_db| cache_db(asn_db).or_failed_to("cache DB file")).or_failed_to("open DB file")
+            debug!("Loading DB from TSV: {}", args.tsv_path.display());
+            AsnDb::form_tsv_file(args.tsv_path).tap_ok(|asn_db| cache_db(asn_db).or_failed_to("cache DB file")).or_failed_to("open DB file")
         }
     };
 
