@@ -16,7 +16,8 @@ pub struct AnsRecord {
     pub ip: u32,
     pub prefix_len: u8,
     pub country: String,
-    pub as_number: u32, pub owner: String,
+    pub as_number: u32, 
+    pub owner: String,
 }
 
 impl AnsRecord {
@@ -197,5 +198,18 @@ impl AsnDb {
         let db_file = File::create(&path).wrap_error_while("creating ASN DB file for storage")?;
         serialize_into(BufWriter::new(db_file), &self.0).wrap_error_while("stroing DB")?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_lookup() {
+        let db = AsnDb::form_tsv_file("ip2asn-v4.tsv").unwrap();
+        assert!(db.lookup("1.1.1.1".parse().unwrap()).unwrap().owner.contains("CLOUDFLARENET"));
+        assert!(db.lookup("8.8.8.8".parse().unwrap()).unwrap().owner.contains("GOOGLE"));
+        assert!(db.lookup("8.8.4.4".parse().unwrap()).unwrap().owner.contains("GOOGLE"));
     }
 }
