@@ -1,7 +1,7 @@
 use cotton::prelude::*;
 use std::io;
 use std::net::Ipv4Addr;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use itertools::Itertools;
 use app_dirs::*;
@@ -23,6 +23,13 @@ fn cache_db(asn_db: &AsnDb) -> Result<(), Problem> {
     Ok(())
 }
 
+fn remove_cache_db() -> Result<(), Problem> {
+    let db_file_path = db_file_path()?;
+    debug!("Removing cached DB file: {}", db_file_path.display());
+    std::fs::remove_file(db_file_path)?;
+    Ok(())
+}
+
 fn load_cached_db() -> Result<Option<AsnDb>, Problem> {
     let db_file_path = db_file_path()?;
     Ok(if db_file_path.exists() {
@@ -38,16 +45,38 @@ struct Cli {
     #[structopt(flatten)]
     logging: LoggingOpt,
 
-    #[structopt(long = "ip2asn-tsv", default_value = "ip2asn-v4.tsv")]
+    #[structopt(long = "ip2asn-tsv-path", default_value = "ip2asn-v4.tsv")]
     tsv_path: PathBuf,
+
+    #[structopt(long = "ip2asn-tsv-url", default_value = "https://iptoasn.com/data/ip2asn-v4.tsv.gz")]
+    tsv_url: String,
+
+    /// Fetch new TSV database file form ip2asn-tsv-url
+    #[structopt(long = "update")]
+    update: bool,
 
     #[structopt(name = "IP")]
     ips: Vec<String>,
 }
 
+fn download(url: &str, path: impl AsRef<Path>) -> Result<(), Problem> {
+    let path = path.as_ref();
+    info!("Downloading ip2asn TSV database from: {} to: {}", url, path.display());
+    let tsv_file = File::create(&path).problem_while_with(|| format!("creating ip2asn TSV file at '{}'", path.display()))?;
+    let mut tsv_file = flate2::write::GzDecoder::new(tsv_file);
+    let mut response = reqwest::get(url)?;
+    response.copy_to(&mut tsv_file).problem_while("downloading ip2asn data to TSV file")?;
+    Ok(())
+}
+
 fn main() {
     let args = Cli::from_args();
     init_logger(&args.logging, vec![module_path!()]);
+
+    if args.update {
+        download(args.tsv_url.as_str(), &args.tsv_path).or_failed_to(format!("download TSV from: {}", args.tsv_url));
+        remove_cache_db().ok();
+    }
 
     let asn_db = match load_cached_db().or_failed_to("load cached DB") {
         Some(records) => records,
