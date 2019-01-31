@@ -1,23 +1,7 @@
-extern crate cotton;
-#[macro_use]
-extern crate structopt;
-#[macro_use]
-extern crate log;
-extern crate csv;
-extern crate problem;
-extern crate ipnet;
-extern crate superslice;
-#[macro_use]
-extern crate serde_derive;
-extern crate serde;
-extern crate bincode;
-extern crate itertools;
-extern crate app_dirs;
-
 use cotton::prelude::*;
+use log::*;
 use std::io;
 use std::fs::File;
-use ipnet::*;
 use std::net::Ipv4Addr;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -26,48 +10,9 @@ use bincode::{serialize_into, deserialize_from};
 use itertools::Itertools;
 use app_dirs::*;
 
+use asn_tools::*;
+
 const APP_INFO: AppInfo = AppInfo{name: "asn_tools", author: "Jakub Pastuszek"};
-
-#[derive(Serialize, Deserialize, Debug)]
-struct AnsRecord {
-    ip: u32,
-    prefix_len: u8,
-    country: String,
-    as_number: u32,
-    owner: String,
-}
-
-impl AnsRecord {
-    fn network(&self) -> Ipv4Net {
-        Ipv4Net::new(self.ip.into(), self.prefix_len).expect("Bad network")
-    }
-}
-
-// https://iptoasn.com/
-fn load_ip_to_asn_csv<'d, R: io::Read>(data: &'d mut csv::Reader<R>) -> impl Iterator<Item=AnsRecord> + 'd {
-    data.records().or_failed_to("read IP2ANS record")
-        .filter(|record| {
-            let owner = &record[4];
-            !(owner == "Not routed" || owner == "None")
-        })
-        .flat_map(|record| {
-            let range_start: Ipv4Addr = record[0].parse().or_failed_to("parse IP");
-            let range_end: Ipv4Addr = record[1].parse().or_failed_to("parse IP");
-            let as_number: u32 = record[2].parse().or_failed_to("parse AS number");
-            let country = record[3].to_owned();
-            let owner = record[4].to_owned();
-
-            Ipv4Subnets::new(range_start, range_end, 8).map(move |net| {
-                AnsRecord {
-                    ip: net.network().into(),
-                    prefix_len: net.prefix_len(),
-                    country: country.clone(),
-                    as_number,
-                    owner: owner.clone(),
-                }
-            })
-        })
-}
 
 fn db_file_path() -> Result<PathBuf, Problem> {
     let mut db_file_path = app_dir(AppDataType::UserCache, &APP_INFO, "asn_records")?;
@@ -115,7 +60,7 @@ fn main() {
         None => {
             debug!("Loading DB from CSV... ");
             let mut rdr = csv::ReaderBuilder::new().delimiter(b'\t').from_reader(BufReader::new(File::open("ip2asn-v4.tsv").or_failed_to("open DB file")));
-            let mut records = load_ip_to_asn_csv(&mut rdr).collect::<Vec<_>>();
+            let mut records = read_asn_csv(&mut rdr).collect::<Result<Vec<_>, _>>().or_failed_to("read ASN database CSV file");
             records.sort_by_key(|record| record.ip);
             cache_db(&records).or_failed_to("cache records DB");
             records
