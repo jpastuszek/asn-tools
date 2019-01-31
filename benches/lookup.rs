@@ -12,7 +12,7 @@ fn bench_lookup(c: &mut Criterion) {
         Benchmark::new(
             "lookup",
             move |b| b.iter(|| {
-                ips.iter().map(|ip| db.lookup(*ip).unwrap()).map(|r| r.as_number).sum::<u32>()
+                assert!(ips.iter().map(|ip| db.lookup(*ip).unwrap()).map(|r| r.as_number).sum::<u32>() > 0)
             })
         ).throughput(Throughput::Elements(ips_count as u32)),
     );

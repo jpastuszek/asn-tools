@@ -72,8 +72,6 @@ impl From<ErrorContext<std::num::ParseIntError, &'static str>> for AsnTsvParseEr
     }
 }
 
-// TODO: try this https://docs.rs/eytzinger/1.0.1/eytzinger/
-
 /// Reads ASN database TSV file as provided at https://iptoasn.com/
 pub fn read_asn_tsv<'d, R: io::Read>(data: &'d mut csv::Reader<R>) -> impl Iterator<Item=Result<AnsRecord, AsnTsvParseError>> + 'd {
     data.records()
