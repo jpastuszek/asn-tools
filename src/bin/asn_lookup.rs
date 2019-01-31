@@ -1,12 +1,8 @@
 use cotton::prelude::*;
-use log::*;
 use std::io;
-use std::fs::File;
-use std::path::Path;
 use std::net::Ipv4Addr;
 use std::path::PathBuf;
 use std::str::FromStr;
-use bincode::{serialize_into, deserialize_from};
 use itertools::Itertools;
 use app_dirs::*;
 
@@ -20,23 +16,17 @@ fn db_file_path() -> Result<PathBuf, Problem> {
     Ok(db_file_path)
 }
 
-fn cache_db(records: &[AnsRecord]) -> Result<(), Problem> {
+fn cache_db(asn_db: &AsnDb) -> Result<(), Problem> {
     let db_file_path = db_file_path()?;
     debug!("Caching DB to: {}", db_file_path.display());
-
-    let db_file = File::create(&db_file_path).problem_while_with(|| format!("creating DB file: {}", db_file_path.display()))?;
-    serialize_into(BufWriter::new(db_file), records).problem_while("serilizing DB to bincode")?;
-
-    Ok(())
+    asn_db.store(db_file_path).map_problem()
 }
 
-fn load_cached_db() -> Result<Option<Vec<AnsRecord>>, Problem> {
+fn load_cached_db() -> Result<Option<AsnDb>, Problem> {
     let db_file_path = db_file_path()?;
-
     if db_file_path.exists() {
         debug!("Loading cached DB from: {}", db_file_path.display());
-        let db_file = File::open(&db_file_path)?;
-        Ok(Some(deserialize_from(BufReader::new(db_file)).problem_while("read bincode DB file")?))
+        AsnDb::from_stored_file(db_file_path).map(Some).map_problem()
     } else {
         Ok(None)
     }
@@ -47,6 +37,9 @@ struct Cli {
     #[structopt(flatten)]
     logging: LoggingOpt,
 
+    #[structopt(long = "ip2asn-tsv", default_value = "ip2asn-v4.tsv")]
+    tsv_path: PathBuf,
+
     #[structopt(name = "IP")]
     ips: Vec<String>,
 }
@@ -55,14 +48,13 @@ fn main() {
     let args = Cli::from_args();
     init_logger(&args.logging, vec![module_path!()]);
 
-    // let records = match load_cached_db().or_failed_to("load cached DB") {
-    //     Some(records) => records,
-    //     None => {
-    //         debug!("Loading DB from CSV... ");
-    //         AsnDb::form_csv_file(Path::new("ip2asn-v4.tsv")).or_failed_to("open DB file")
-    //     }
-    // };
-    let asn_db = AsnDb::form_csv_file(Path::new("ip2asn-v4.tsv")).or_failed_to("open DB file");
+    let asn_db = match load_cached_db().or_failed_to("load cached DB") {
+        Some(records) => records,
+        None => {
+            debug!("Loading DB from CSV: {}", args.tsv_path.display());
+            AsnDb::form_csv_file(args.tsv_path).tap_ok(|asn_db| cache_db(asn_db)).or_failed_to("open DB file")
+        }
+    };
 
     let mut stdin_csv = if args.ips.is_empty() {
         Some(csv::ReaderBuilder::new()

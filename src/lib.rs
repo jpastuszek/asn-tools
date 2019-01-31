@@ -5,10 +5,11 @@ use std::net::Ipv4Addr;
 use std::io;
 use std::fmt;
 use std::error::Error;
-use std::io::BufReader;
+use std::io::{BufReader, BufWriter};
 use std::fs::File;
 use std::path::Path;
 use superslice::Ext;
+use bincode::{serialize_into, deserialize_from};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AnsRecord {
@@ -118,13 +119,25 @@ pub struct AsnDb(Vec<AnsRecord>);
 pub enum AsnDbError {
     CsvError(AsnCsvParseError),
     FileError(io::Error, &'static str),
+    BincodeError(bincode::Error, &'static str),
 }
 
 impl fmt::Display for AsnDbError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            AsnDbError::CsvError(err) => write!(f, "error opening ASN DB from CSV file: {}", err),
-            AsnDbError::FileError(err, context) => write!(f, "error opening ASN DB from file while {}: {}", context, err),
+            AsnDbError::CsvError(_) => write!(f, "error opening ASN DB from CSV file"),
+            AsnDbError::FileError(_, context) => write!(f, "error opening ASN DB from file while {}", context),
+            AsnDbError::BincodeError(_, context) => write!(f, "error (de)serializing ASN DB to bincode format while {}", context),
+        }
+    }
+}
+
+impl Error for AsnDbError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            AsnDbError::CsvError(err) => Some(err),
+            AsnDbError::FileError(err, _) => Some(err),
+            AsnDbError::BincodeError(err, _) => Some(err),
         }
     }
 }
@@ -141,12 +154,23 @@ impl From<ErrorContext<io::Error, &'static str>> for AsnDbError {
     }
 }
 
+impl From<ErrorContext<bincode::Error, &'static str>> for AsnDbError {
+    fn from(err: ErrorContext<bincode::Error, &'static str>) -> AsnDbError {
+        AsnDbError::BincodeError(err.error, err.context)
+    }
+}
+
 impl AsnDb {
     pub fn form_csv_file(path: impl AsRef<Path>) -> Result<AsnDb, AsnDbError> {
         let mut rdr = csv::ReaderBuilder::new().delimiter(b'\t').from_reader(BufReader::new(File::open(path).wrap_error_while("opending CSV file")?));
         let mut records = read_asn_csv(&mut rdr).collect::<Result<Vec<_>, _>>()?;
         records.sort_by_key(|record| record.ip);
         Ok(AsnDb(records))
+    }
+
+    pub fn from_stored_file(path: impl AsRef<Path>) -> Result<AsnDb, AsnDbError> {
+        let db_file = File::open(&path).wrap_error_while("opening stored ASN DB file")?;
+        Ok(AsnDb(deserialize_from(BufReader::new(db_file)).wrap_error_while("reading bincode DB file")?))
     }
 
     pub fn lookup(&self, ip: Ipv4Addr) -> Option<&AnsRecord> {
@@ -158,5 +182,12 @@ impl AsnDb {
             }
         }
         None
+    }
+
+    pub fn store(&self, path: impl AsRef<Path>) -> Result<(), AsnDbError> {
+        let path = path.as_ref();
+        let db_file = File::create(&path).wrap_error_while("creating ASN DB file for storage")?;
+        serialize_into(BufWriter::new(db_file), &self.0).wrap_error_while("stroing DB")?;
+        Ok(())
     }
 }
