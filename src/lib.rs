@@ -35,14 +35,22 @@ pub enum AsnCsvParseError {
 impl fmt::Display for AsnCsvParseError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            AsnCsvParseError::CsvError(err) => write!(f, "CSV format error: {}", err),
-            AsnCsvParseError::AddrFieldParseError(err, context) => write!(f, "error parsing IP address while {}: {}", context, err),
-            AsnCsvParseError::IntFieldParseError(err, context) => write!(f, "error parsing integer while {}: {}", context, err),
+            AsnCsvParseError::CsvError(_) => write!(f, "CSV format error"),
+            AsnCsvParseError::AddrFieldParseError(_, context) => write!(f, "error parsing IP address while {}", context),
+            AsnCsvParseError::IntFieldParseError(_, context) => write!(f, "error parsing integer while {}", context),
         }
     }
 }
 
-impl Error for AsnCsvParseError {}
+impl Error for AsnCsvParseError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            AsnCsvParseError::CsvError(err) => Some(err),
+            AsnCsvParseError::AddrFieldParseError(err, _) => Some(err),
+            AsnCsvParseError::IntFieldParseError(err, _) => Some(err),
+        }
+    }
+}
 
 impl From<csv::Error> for AsnCsvParseError {
     fn from(error: csv::Error) -> AsnCsvParseError {
