@@ -4,6 +4,10 @@ version = "0.1.0"
 authors = ["Jakub Pastuszek <jpastuszek@gmail.com>"]
 edition = "2018"
 
+[[bench]]
+name = "lookup"
+harness = false
+
 [dependencies]
 problem = "0.1.0"
 csv = "1.0.2"
@@ -20,3 +24,6 @@ app_dirs = "1.2.1"
 error-context = { git = "https://github.com/jpastuszek/error-context.git" }
 reqwest = "0.9.9"
 flate2 = "1.0.6"
+
+[dev-dependencies]
+criterion = "0.2.9"
