@@ -1,5 +1,5 @@
 use criterion::*;
-use asn_tools::AsnDb;
+use asn_db::AsnDb;
 
 fn bench_lookup(c: &mut Criterion) {
     let db = AsnDb::form_tsv_file("ip2asn-v4.tsv").unwrap();

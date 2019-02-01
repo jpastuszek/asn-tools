@@ -6,7 +6,7 @@ use std::str::FromStr;
 use itertools::Itertools;
 use app_dirs::*;
 
-use asn_tools::*;
+use asn_db::*;
 
 const APP_INFO: AppInfo = AppInfo{name: "asn_tools", author: "Jakub Pastuszek"};
 

@@ -2,3 +2,4 @@
 **/*.rs.bk
 db.bincode
 *.tsv
+NOTES
