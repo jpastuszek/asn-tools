@@ -105,7 +105,7 @@ fn main() {
         .unwrap_or_else(|| {
             info!("Loading DB from TSV: {}", tsv_path.display());
             in_context_of(format!("loading database from TSV file: {}", tsv_path.display()), || {
-                Ok(Db::form_tsv_file(BufReader::new(File::open(tsv_path)?))?)
+                Ok(Db::form_tsv(BufReader::new(File::open(tsv_path)?))?)
             })
             .tap_ok(|asn_db| cache_db(asn_db).or_failed_to("cache DB file"))
             .or_failed_to("load ASN database")

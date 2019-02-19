@@ -41,7 +41,7 @@ dependencies = [
 [[package]]
 name = "asn-db"
 version = "0.1.0"
-source = "git+https://github.com/jpastuszek/asn-db.git#faab9453f7b0102dc562379632aa41843b75bbc7"
+source = "git+https://github.com/jpastuszek/asn-db.git#8a04718d7450c1c38ee567d6ce0b6503ca81ea2a"
 dependencies = [
  "bincode 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "csv 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
