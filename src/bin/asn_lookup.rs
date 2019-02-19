@@ -9,6 +9,7 @@ use app_dirs::*;
 use asn_db::*;
 
 const APP_INFO: AppInfo = AppInfo{name: "asn_tools", author: "Jakub Pastuszek"};
+const DEFAULT_DATA_FILE: &'static str = "asn-db.dat";
 
 //TODO: this is stable in 1.33
 trait Transpose<T, E> {
@@ -27,7 +28,7 @@ impl<T, E> Transpose<T, E> for Option<Result<T, E>> {
 
 fn db_file_path() -> Result<PathBuf, Problem> {
     let mut db_file_path = app_dir(AppDataType::UserCache, &APP_INFO, "asn_records")?;
-    db_file_path.push("db.bincode");
+    db_file_path.push(DEFAULT_DATA_FILE);
     Ok(db_file_path)
 }
 
@@ -80,10 +81,11 @@ struct Cli {
 }
 
 fn download(url: &str, path: impl AsRef<Path>) -> Result<(), Problem> {
+    use flate2::write::GzDecoder;
     let path = path.as_ref();
     info!("Downloading ip2asn TSV database from: {} to: {}", url, path.display());
     let tsv_file = File::create(&path).problem_while_with(|| format!("creating ip2asn TSV file at '{}'", path.display()))?;
-    let mut tsv_file = flate2::write::GzDecoder::new(tsv_file);
+    let mut tsv_file = GzDecoder::new(tsv_file);
     let mut response = reqwest::get(url)?;
     response.copy_to(&mut tsv_file).problem_while("downloading ip2asn data to TSV file")?;
     Ok(())
