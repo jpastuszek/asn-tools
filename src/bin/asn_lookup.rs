@@ -10,34 +10,50 @@ use asn_db::*;
 
 const APP_INFO: AppInfo = AppInfo{name: "asn_tools", author: "Jakub Pastuszek"};
 
+//TODO: this is stable in 1.33
+trait Transpose<T, E> {
+    fn transpose(self) -> Result<Option<T>, E>;
+}
+
+impl<T, E> Transpose<T, E> for Option<Result<T, E>> {
+    fn transpose(self) -> Result<Option<T>, E> {
+        match self {
+            Some(Ok(x)) => Ok(Some(x)),
+            Some(Err(e)) => Err(e),
+            None => Ok(None),
+        }
+    }
+}
+
 fn db_file_path() -> Result<PathBuf, Problem> {
     let mut db_file_path = app_dir(AppDataType::UserCache, &APP_INFO, "asn_records")?;
     db_file_path.push("db.bincode");
     Ok(db_file_path)
 }
 
-fn cache_db(asn_db: &AsnDb) -> Result<(), Problem> {
+fn cache_db(asn_db: &Db) -> Result<(), Problem> {
     let db_file_path = db_file_path()?;
-    debug!("Caching DB to: {}", db_file_path.display());
-    asn_db.store(db_file_path)?;
-    Ok(())
+    info!("Caching DB to: {}", db_file_path.display());
+    in_context_of(format!("storing database to file: {}", db_file_path.display()), || {
+        Ok(asn_db.store(BufWriter::new(File::create(db_file_path)?))?)
+    })
 }
 
 fn remove_cache_db() -> Result<(), Problem> {
     let db_file_path = db_file_path()?;
-    debug!("Removing cached DB file: {}", db_file_path.display());
+    info!("Removing cached DB file: {}", db_file_path.display());
     std::fs::remove_file(db_file_path)?;
     Ok(())
 }
 
-fn load_cached_db() -> Result<Option<AsnDb>, Problem> {
+fn load_cached_db() -> Result<Option<Db>, Problem> {
     let db_file_path = db_file_path()?;
-    Ok(if db_file_path.exists() {
+    db_file_path.exists().as_some_from(|| {
         debug!("Loading cached DB from: {}", db_file_path.display());
-        Some(AsnDb::from_stored_file(db_file_path)?)
-    } else {
-        None
-    })
+        in_context_of(format!("loading database from file: {}", db_file_path.display()), || {
+            Ok(Db::load(BufReader::new(File::open(db_file_path)?))?)
+        })
+    }).transpose()
 }
 
 /// Lookup IP in ASN database
@@ -54,7 +70,7 @@ struct Cli {
     #[structopt(long = "ip2asn-tsv-url", default_value = "https://iptoasn.com/data/ip2asn-v4.tsv.gz")]
     tsv_url: String,
 
-    /// Fetch new TSV database file form ip2asn-tsv-url
+    /// Fetch new TSV database file form ip2asn-tsv-url and rebuild database
     #[structopt(long = "update")]
     update: bool,
 
@@ -82,13 +98,21 @@ fn main() {
         remove_cache_db().ok();
     }
 
-    let asn_db = match load_cached_db().or_failed_to("load cached DB") {
-        Some(records) => records,
-        None => {
-            debug!("Loading DB from TSV: {}", args.tsv_path.display());
-            AsnDb::form_tsv_file(args.tsv_path).tap_ok(|asn_db| cache_db(asn_db).or_failed_to("cache DB file")).or_failed_to("open DB file")
-        }
-    };
+    let tsv_path = args.tsv_path;
+    let asn_db = load_cached_db().or_failed_to("load cached DB")
+        .unwrap_or_else(|| {
+            info!("Loading DB from TSV: {}", tsv_path.display());
+            in_context_of(format!("loading database from TSV file: {}", tsv_path.display()), || {
+                Ok(Db::form_tsv_file(BufReader::new(File::open(tsv_path)?))?)
+            })
+            .tap_ok(|asn_db| cache_db(asn_db).or_failed_to("cache DB file"))
+            .or_failed_to("load ASN database")
+        });
+
+    if args.update {
+        info!("Update done");
+        return
+    }
 
     let mut stdin_csv = if args.ips.is_empty() {
         Some(csv::ReaderBuilder::new()
