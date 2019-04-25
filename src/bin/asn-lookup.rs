@@ -1,51 +1,11 @@
+use asn_tools::db_file_path;
 use cotton::prelude::*;
 use std::io;
 use std::net::Ipv4Addr;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::str::FromStr;
 use itertools::Itertools;
-use app_dirs::*;
-
 use asn_db::*;
-
-const APP_INFO: AppInfo = AppInfo{name: "asn_tools", author: "Jakub Pastuszek"};
-const DEFAULT_DATA_FILE: &'static str = "asn-db.dat";
-
-//TODO: this is stable in 1.33
-trait Transpose<T, E> {
-    fn transpose(self) -> Result<Option<T>, E>;
-}
-
-impl<T, E> Transpose<T, E> for Option<Result<T, E>> {
-    fn transpose(self) -> Result<Option<T>, E> {
-        match self {
-            Some(Ok(x)) => Ok(Some(x)),
-            Some(Err(e)) => Err(e),
-            None => Ok(None),
-        }
-    }
-}
-
-fn db_file_path() -> Result<PathBuf, Problem> {
-    let mut db_file_path = app_dir(AppDataType::UserCache, &APP_INFO, "asn_records")?;
-    db_file_path.push(DEFAULT_DATA_FILE);
-    Ok(db_file_path)
-}
-
-fn cache_db(asn_db: &Db) -> Result<(), Problem> {
-    let db_file_path = db_file_path()?;
-    info!("Caching DB to: {}", db_file_path.display());
-    in_context_of(format!("storing database to file: {}", db_file_path.display()), || {
-        Ok(asn_db.store(BufWriter::new(File::create(db_file_path)?))?)
-    })
-}
-
-fn remove_cache_db() -> Result<(), Problem> {
-    let db_file_path = db_file_path()?;
-    info!("Removing cached DB file: {}", db_file_path.display());
-    std::fs::remove_file(db_file_path)?;
-    Ok(())
-}
 
 fn load_cached_db() -> Result<Option<Db>, Problem> {
     let db_file_path = db_file_path()?;
@@ -80,25 +40,9 @@ struct Cli {
     ips: Vec<String>,
 }
 
-fn download(url: &str, path: impl AsRef<Path>) -> Result<(), Problem> {
-    use flate2::write::GzDecoder;
-    let path = path.as_ref();
-    info!("Downloading ip2asn TSV database from: {} to: {}", url, path.display());
-    let tsv_file = File::create(&path).problem_while_with(|| format!("creating ip2asn TSV file at '{}'", path.display()))?;
-    let mut tsv_file = GzDecoder::new(tsv_file);
-    let mut response = reqwest::get(url)?;
-    response.copy_to(&mut tsv_file).problem_while("downloading ip2asn data to TSV file")?;
-    Ok(())
-}
-
 fn main() {
     let args = Cli::from_args();
     init_logger(&args.logging, vec![module_path!()]);
-
-    if args.update {
-        download(args.tsv_url.as_str(), &args.tsv_path).or_failed_to(format!("download TSV from: {}", args.tsv_url));
-        remove_cache_db().ok();
-    }
 
     let tsv_path = args.tsv_path;
     let asn_db = load_cached_db().or_failed_to("load cached DB")
@@ -107,14 +51,9 @@ fn main() {
             in_context_of(format!("loading database from TSV file: {}", tsv_path.display()), || {
                 Ok(Db::form_tsv(BufReader::new(File::open(tsv_path)?))?)
             })
-            .tap_ok(|asn_db| cache_db(asn_db).or_failed_to("cache DB file"))
+            .tap_ok(|_| warn!("Consider running asn-update to get TSV file cached for fast loading"))
             .or_failed_to("load ASN database")
         });
-
-    if args.update {
-        info!("Update done");
-        return
-    }
 
     let mut stdin_csv = if args.ips.is_empty() {
         Some(csv::ReaderBuilder::new()
