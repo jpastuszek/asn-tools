@@ -57,18 +57,30 @@ fn main() {
         .map(|ip| Ipv4Addr::from_str(&ip)).or_failed_to("parse lookup IP")
         .collect::<Vec<_>>();
 
+    // prepare input so we can group results later on
     ips.sort();
     ips.dedup();
 
-    let ips = ips.into_iter().map(|lookup_ip| (lookup_ip, asn_db.lookup(lookup_ip)));
-    
-    for (record, group) in &ips.group_by(|(_lookup_ip, record)| record.clone()) {
-        if let Some(record) = record {
-            println!("'{:?}', # {} {} {} ({})", record.network(), record.country, record.as_number, record.owner, group.map(|(ip, _)| ip).join(", "));
-        } else {
-            for (lookup_ip, _) in group {
-                println!("'{}', # Not found in the ASN DB", lookup_ip);
+    // resolve and group by record
+    let groups = ips
+        .into_iter()
+        .map(|lookup_ip| (lookup_ip, asn_db.lookup(lookup_ip)))
+        .group_by(|(_lookup_ip, record)| record.clone());
+
+    // map out only lookup_ip from each group since key is the record
+    let records = groups.into_iter().map(|(lookup_ip, group)| (lookup_ip, group.map(|(lookup_ip, _)| lookup_ip)));
+
+    fn print_puppet<'g>(records: impl Iterator<Item = (Option<&'g asn_db::Record>, impl Iterator<Item = Ipv4Addr>)>) {
+        for (record, mut lookup_ips) in records.into_iter() {
+            if let Some(record) = record {
+                println!("'{:?}', # {} {} {} ({})", record.network(), record.country, record.as_number, record.owner, lookup_ips.join(", "));
+            } else {
+                for lookup_ip in lookup_ips {
+                    println!("'{}', # Not found in the ASN DB", lookup_ip);
+                }
             }
         }
     }
+
+    print_puppet(records);
 }
