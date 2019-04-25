@@ -1,4 +1,4 @@
-use asn_tools::db_file_path;
+use asn_tools::default_database_cache_path;
 use cotton::prelude::*;
 use std::io;
 use std::net::Ipv4Addr;
@@ -8,10 +8,10 @@ use itertools::Itertools;
 use asn_db::*;
 
 fn load_cached_db() -> Result<Option<Db>, Problem> {
-    let db_file_path = db_file_path()?;
+    let db_file_path = default_database_cache_path()?;
     db_file_path.exists().as_some_from(|| {
         debug!("Loading cached DB from: {}", db_file_path.display());
-        in_context_of(format!("loading database from file: {}", db_file_path.display()), || {
+        in_context_of(&format!("loading database from file: {}", db_file_path.display()), || {
             Ok(Db::load(BufReader::new(File::open(db_file_path)?))?)
         })
     }).transpose()
@@ -48,7 +48,7 @@ fn main() {
     let asn_db = load_cached_db().or_failed_to("load cached DB")
         .unwrap_or_else(|| {
             info!("Loading DB from TSV: {}", tsv_path.display());
-            in_context_of(format!("loading database from TSV file: {}", tsv_path.display()), || {
+            in_context_of(&format!("loading database from TSV file: {}", tsv_path.display()), || {
                 Ok(Db::form_tsv(BufReader::new(File::open(tsv_path)?))?)
             })
             .tap_ok(|_| warn!("Consider running asn-update to get TSV file cached for fast loading"))
