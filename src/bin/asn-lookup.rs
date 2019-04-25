@@ -52,18 +52,23 @@ fn main() {
         .chain(stdin_csv.iter_mut().flat_map(|csv|
             csv.records().or_failed_to("read lookup IP from stdin")
             .map(|record| record[0].to_owned())));
+
+    let mut ips = ips
+        .map(|ip| Ipv4Addr::from_str(&ip)).or_failed_to("parse lookup IP")
+        .collect::<Vec<_>>();
+
+    ips.sort();
+    ips.dedup();
+
+    let ips = ips.into_iter().map(|lookup_ip| (lookup_ip, asn_db.lookup(lookup_ip)));
     
-    let mut matches = ips.map(|ip| Ipv4Addr::from_str(&ip)).or_failed_to("parse lookup IP").map(|lookup_ip| {
-        (lookup_ip, asn_db.lookup(lookup_ip))
-    }).collect::<Vec<_>>();
-
-    matches.sort_by_key(|(lookup_ip, _)| lookup_ip.clone());
-
-    for (lookup_ip, record) in matches.iter().unique_by(|(lookup_ip, record)| record.map(|r| r.ip).unwrap_or(lookup_ip.clone().into())) {
+    for (record, group) in &ips.group_by(|(_lookup_ip, record)| record.clone()) {
         if let Some(record) = record {
-            println!("'{:?}', # {} {} {} ({})", record.network(), record.country, record.as_number, record.owner, lookup_ip);
+            println!("'{:?}', # {} {} {} ({})", record.network(), record.country, record.as_number, record.owner, group.map(|(ip, _)| ip).join(", "));
         } else {
-            println!("'{}', # IP '{}' was not found in the ASN DB", lookup_ip, lookup_ip);
+            for (lookup_ip, _) in group {
+                println!("'{}', # Not found in the ASN DB", lookup_ip);
+            }
         }
     }
 }
