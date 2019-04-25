@@ -2,19 +2,15 @@ use asn_tools::default_database_cache_path;
 use cotton::prelude::*;
 use std::io;
 use std::net::Ipv4Addr;
-use std::path::PathBuf;
+use std::path::{PathBuf, Path};
 use std::str::FromStr;
 use itertools::Itertools;
 use asn_db::*;
 
-fn load_cached_db() -> Result<Option<Db>, Problem> {
-    let db_file_path = default_database_cache_path()?;
-    db_file_path.exists().as_some_from(|| {
-        debug!("Loading cached DB from: {}", db_file_path.display());
-        in_context_of(&format!("loading database from file: {}", db_file_path.display()), || {
-            Ok(Db::load(BufReader::new(File::open(db_file_path)?))?)
-        })
-    }).transpose()
+fn load_cached_db(db_file_path: &Path) -> Result<Db, Problem> {
+    in_context_of(&format!("loading database from file: {}", db_file_path.display()), || {
+        Ok(Db::load(BufReader::new(File::open(db_file_path)?))?)
+    })
 }
 
 /// Lookup IP in ASN database
@@ -23,17 +19,9 @@ struct Cli {
     #[structopt(flatten)]
     logging: LoggingOpt,
 
-    /// Path to TSV file to build cache from or store downloaded database
-    #[structopt(long = "ip2asn-tsv-path", default_value = "ip2asn-v4.tsv")]
-    tsv_path: PathBuf,
-
-    /// URL to TSV file containing ip2asn database for update
-    #[structopt(long = "ip2asn-tsv-url", default_value = "https://iptoasn.com/data/ip2asn-v4.tsv.gz")]
-    tsv_url: String,
-
-    /// Fetch new TSV database file form ip2asn-tsv-url and rebuild database
-    #[structopt(long = "update")]
-    update: bool,
+    /// Path to database cache file to update; if not given default OS dependent location will be used
+    #[structopt(long = "database-cache-path")]
+    database_cache_path: Option<PathBuf>,
 
     /// List of IP addresses to lookup (can also be read from stdin, one per line)
     #[structopt(name = "IP")]
@@ -44,16 +32,14 @@ fn main() {
     let args = Cli::from_args();
     init_logger(&args.logging, vec![module_path!()]);
 
-    let tsv_path = args.tsv_path;
-    let asn_db = load_cached_db().or_failed_to("load cached DB")
-        .unwrap_or_else(|| {
-            info!("Loading DB from TSV: {}", tsv_path.display());
-            in_context_of(&format!("loading database from TSV file: {}", tsv_path.display()), || {
-                Ok(Db::form_tsv(BufReader::new(File::open(tsv_path)?))?)
-            })
-            .tap_ok(|_| warn!("Consider running asn-update to get TSV file cached for fast loading"))
-            .or_failed_to("load ASN database")
-        });
+    let db_file_path = args.database_cache_path.unwrap_or_else(|| default_database_cache_path().or_failed_to("get default database cache file path"));
+
+    debug!("Loading database cache file from: {}", db_file_path.display());
+    if !db_file_path.exists() {
+        error!("No database cache file found in '{}', please use asn-update to create one.", db_file_path.display());
+        std::process::exit(2)
+    }
+    let asn_db = load_cached_db(&db_file_path).or_failed_to("load database cache file");
 
     let mut stdin_csv = if args.ips.is_empty() {
         Some(csv::ReaderBuilder::new()
