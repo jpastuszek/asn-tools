@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 cotton = { git = "https://github.com/jpastuszek/cotton.git" }
 asn-db = "0.1.1"
-csv = "1.0.2"
+csv = "1.0.7"
 log = "0.4.6"
 itertools = "0.7.8"
 app_dirs = "1.2.1"

@@ -16,6 +16,7 @@ fn load_cached_db(db_file_path: &Path) -> Result<Db, Problem> {
 #[derive(Debug)]
 enum Output {
     Table,
+    Csv,
     Puppet,
 }
 
@@ -24,8 +25,9 @@ impl FromStr for Output {
     fn from_str(output: &str) -> Result<Self, Self::Err> {
         match output {
             "table" => Ok(Output::Table),
+            "csv" => Ok(Output::Csv),
             "puppet" => Ok(Output::Puppet),
-            _ => Err("options are: table, puppet".into()),
+            _ => Err("options are: table, csv, puppet".into()),
         }
     }
 }
@@ -40,7 +42,7 @@ struct Cli {
     #[structopt(long = "database-cache-path")]
     database_cache_path: Option<PathBuf>,
 
-    /// Output format: table, puppet
+    /// Output format: table, csv, puppet
     #[structopt(short = "o", long = "output", default_value = "table")]
     output: Output,
 
@@ -130,8 +132,35 @@ fn main() {
         print!("{}", table);
     }
 
+    fn print_csv<'g>(records: impl Iterator<Item = (Option<&'g asn_db::Record>, impl Iterator<Item = Ipv4Addr>)>) -> Result<(), Problem> {
+        use csv::WriterBuilder;
+
+        let mut csv = WriterBuilder::new().from_writer(std::io::stdout());
+        csv.write_record(&["Network", "Country", "AS Number", "Owner", "Matched IPs"])?;
+
+        for (record, mut lookup_ips) in records.into_iter() {
+            if let Some(record) = record {
+                csv.write_field(record.network().to_string())?;
+                csv.write_field(&record.country)?;
+                csv.write_field(record.as_number.to_string())?;
+                csv.write_field(&record.owner)?;
+                csv.write_field(lookup_ips.join(", "))?;
+                csv.write_record(None::<&[u8]>)?;
+            } else {
+                csv.write_field("-")?;
+                csv.write_field("-")?;
+                csv.write_field("-")?;
+                csv.write_field("-")?;
+                csv.write_field(lookup_ips.join(", "))?;
+                csv.write_record(None::<&[u8]>)?;
+            };
+        }
+        Ok(())
+    }
+
     match args.output {
         Output::Table => print_table(records),
+        Output::Csv => print_csv(records).or_failed_to("print CSV"),
         Output::Puppet => print_puppet(records),
     }
 }
