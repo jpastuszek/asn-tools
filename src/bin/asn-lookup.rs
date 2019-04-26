@@ -13,6 +13,23 @@ fn load_cached_db(db_file_path: &Path) -> Result<Db, Problem> {
     })
 }
 
+#[derive(Debug)]
+enum Output {
+    Table,
+    Puppet,
+}
+
+impl FromStr for Output {
+    type Err = Problem;
+    fn from_str(output: &str) -> Result<Self, Self::Err> {
+        match output {
+            "table" => Ok(Output::Table),
+            "puppet" => Ok(Output::Puppet),
+            _ => Err("options are: table, puppet".into()),
+        }
+    }
+}
+
 /// Lookup IP in ASN database
 #[derive(Debug, StructOpt)]
 struct Cli {
@@ -22,6 +39,10 @@ struct Cli {
     /// Path to database cache file to update; if not given default OS dependent location will be used
     #[structopt(long = "database-cache-path")]
     database_cache_path: Option<PathBuf>,
+
+    /// Output format: table, puppet
+    #[structopt(short = "o", long = "output", default_value = "table")]
+    output: Output,
 
     /// List of IP addresses to lookup (can also be read from stdin, one per line)
     #[structopt(name = "IP")]
@@ -82,5 +103,35 @@ fn main() {
         }
     }
 
-    print_puppet(records);
+    fn print_table<'g>(records: impl Iterator<Item = (Option<&'g asn_db::Record>, impl Iterator<Item = Ipv4Addr>)>) {
+        use tabular::{Table, Row, row};
+
+        let mut table = Table::new("{:<} {:<} {:<} {:<} {:<} ");
+        table.add_row(row!["Network", "Country", "AS Number", "Owner", "Matched IPs"]);
+
+        for (record, mut lookup_ips) in records.into_iter() {
+            let row = if let Some(record) = record {
+                Row::new()
+                    .with_cell(record.network())
+                    .with_cell(&record.country)
+                    .with_cell(record.as_number)
+                    .with_cell(&record.owner)
+                    .with_cell(lookup_ips.join(", "))
+            } else {
+                Row::new()
+                    .with_cell("-")
+                    .with_cell("-")
+                    .with_cell("-")
+                    .with_cell("-")
+                    .with_cell(lookup_ips.join(", "))
+            };
+            table.add_row(row);
+        }
+        print!("{}", table);
+    }
+
+    match args.output {
+        Output::Table => print_table(records),
+        Output::Puppet => print_puppet(records),
+    }
 }
