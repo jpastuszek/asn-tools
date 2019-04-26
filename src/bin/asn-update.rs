@@ -42,11 +42,11 @@ struct Cli {
     #[structopt(flatten)]
     logging: LoggingOpt,
 
-    /// Path to database cache file to update; if not given default OS dependent location will be used
+    /// Path to database cache file to update [default: OS dependent location]
     #[structopt(long = "database-cache-path")]
     database_cache_path: Option<PathBuf>,
 
-    /// Path to TSV file to build cache from; if not given file will be downloaded from https://iptoasn.com
+    /// Path to TSV file to build cache from; if not specified the file will be downloaded from https://iptoasn.com
     #[structopt(long = "ip2asn-tsv-path")]
     tsv_path: Option<PathBuf>,
 

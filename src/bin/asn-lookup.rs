@@ -40,7 +40,7 @@ struct Cli {
     #[structopt(flatten)]
     logging: LoggingOpt,
 
-    /// Path to database cache file to update; if not given default OS dependent location will be used
+    /// Path to database cache file [default: OS dependent location]
     #[structopt(long = "database-cache-path")]
     database_cache_path: Option<PathBuf>,
 
@@ -48,7 +48,7 @@ struct Cli {
     #[structopt(short = "o", long = "output", default_value = "table")]
     output: Output,
 
-    /// List of IP addresses to lookup (can also be read from stdin, one per line)
+    /// List of IP addresses to lookup (can also be read from stdin, one per line; may be in CSV format where first column is the IP)
     #[structopt(name = "IP")]
     ips: Vec<String>,
 }
