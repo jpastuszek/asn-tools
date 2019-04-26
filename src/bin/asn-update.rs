@@ -1,9 +1,11 @@
 use asn_tools::default_database_cache_path;
 use cotton::prelude::*;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use flate2::read::GzDecoder;
 use asn_db::*;
 use std::ffi::OsString;
+use reqwest::Url;
 
 fn cache_db(asn_db: &Db, db_file_path: &Path) -> Result<(), Problem> {
     in_context_of(&format!("storing database to file: {}", db_file_path.display()), || {
@@ -31,9 +33,24 @@ fn load(path: &Path) -> Result<Box<dyn Read>, Problem> {
     }
 }
 
-fn request(url: &str) -> Result<impl Read, Problem> {
+fn request(url: Url) -> Result<impl Read, Problem> {
     let response = BufReader::new(reqwest::get(url)?);
     Ok(GzDecoder::new(response))
+}
+
+#[derive(Debug)]
+enum UrlOrFile {
+    Url(Url),
+    File(PathBuf),
+}
+
+impl FromStr for UrlOrFile {
+    type Err = Problem;
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        Url::parse(value) .map(UrlOrFile::Url)
+            .or_else(|_| PathBuf::from_str(value).map(UrlOrFile::File))
+            .problem_while("parsing as URL or file path")
+    }
 }
 
 /// Downloads latest TSV file and caches it for use by other tools
@@ -46,13 +63,9 @@ struct Cli {
     #[structopt(long = "database-cache-path")]
     database_cache_path: Option<PathBuf>,
 
-    /// Path to TSV file to build cache from; if not specified the file will be downloaded from https://iptoasn.com
-    #[structopt(long = "ip2asn-tsv-path")]
-    tsv_path: Option<PathBuf>,
-
-    /// URL to TSV file containing ip2asn database for update
-    #[structopt(long = "ip2asn-tsv-url", default_value = "https://iptoasn.com/data/ip2asn-v4.tsv.gz")]
-    tsv_url: String,
+    /// File path or HTTP URL to TSV file to build cache from
+    #[structopt(long = "ip2asn-tsv-location", default_value = "https://iptoasn.com/data/ip2asn-v4.tsv.gz")]
+    tsv_location: UrlOrFile,
 }
 
 fn main() {
@@ -61,12 +74,15 @@ fn main() {
 
     let db_file_path = args.database_cache_path.unwrap_or_else(|| default_database_cache_path().or_failed_to("get default database cache file path"));
 
-    let tsv: Box<dyn Read> = if let Some(tsv_path) = args.tsv_path {
-        info!("Loading ip2asn database from TSV file: {}", tsv_path.display());
-        load(&tsv_path).or_failed_to(format!("load TSV from: {}", tsv_path.display()))
-    } else {
-        info!("Loading ip2asn database from TSV located at: {}", args.tsv_url);
-        Box::new(request(&args.tsv_url).or_failed_to(format!("request TSV from: {}", args.tsv_url)))
+    let tsv: Box<dyn Read> = match args.tsv_location {
+        UrlOrFile::File(tsv_path) => {
+            info!("Loading ip2asn database from TSV file: {}", tsv_path.display());
+            load(&tsv_path).or_failed_to(format!("load TSV from: {}", tsv_path.display()))
+        },
+        UrlOrFile::Url(tsv_url) => {
+            info!("Loading ip2asn database from TSV located at: {}", tsv_url);
+            Box::new(request(tsv_url.clone()).or_failed_to(format!("request TSV from: {}", tsv_url)))
+        }
     };
     let asn_db = Db::form_tsv(tsv).or_failed_to("load ASN database");
 
