@@ -17,6 +17,7 @@ fn load_cached_db(db_file_path: &Path) -> Result<Db, Problem> {
 enum Output {
     Table,
     Csv,
+    Json,
     Puppet,
 }
 
@@ -26,8 +27,9 @@ impl FromStr for Output {
         match output {
             "table" => Ok(Output::Table),
             "csv" => Ok(Output::Csv),
+            "json" => Ok(Output::Json),
             "puppet" => Ok(Output::Puppet),
-            _ => Err("options are: table, csv, puppet".into()),
+            _ => Err("options are: table, csv, json, puppet".into()),
         }
     }
 }
@@ -42,7 +44,7 @@ struct Cli {
     #[structopt(long = "database-cache-path")]
     database_cache_path: Option<PathBuf>,
 
-    /// Output format: table, csv, puppet
+    /// Output format: table, csv, json, puppet
     #[structopt(short = "o", long = "output", default_value = "table")]
     output: Output,
 
@@ -158,9 +160,25 @@ fn main() {
         Ok(())
     }
 
+    fn print_json<'g>(records: impl Iterator<Item = (Option<&'g asn_db::Record>, impl Iterator<Item = Ipv4Addr>)>) {
+        use json_in_type::{JSONValue, json_object, inlined_json_object};
+        use std::cell::RefCell;
+
+        for (record, lookup_ips) in records.into_iter() {
+            println!("{}", json_object!{
+                network: record.map(|record| record.network().to_string()),
+                country: record.map(|record| &record.country),
+                as_number: record.map(|record| record.as_number.to_string()),
+                owner: record.map(|record| &record.owner),
+                matched_ips: RefCell::new(lookup_ips.map(|i| i.to_string())),
+            }.to_json_string());
+        }
+    }
+
     match args.output {
         Output::Table => print_table(records),
         Output::Csv => print_csv(records).or_failed_to("print CSV"),
+        Output::Json => print_json(records),
         Output::Puppet => print_puppet(records),
     }
 }
