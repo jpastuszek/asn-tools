@@ -1,8 +1,9 @@
 Command line tools for looking up IP address for matching ASN information in database from https://iptoasn.com/.
 
-h1. Usage
+# Usage
 
-h2. asn-update
+## asn-update
+
 ```
 asn-tools 0.1.0
 Jakub Pastuszek <jpastuszek@protonmail.com>
@@ -25,7 +26,7 @@ OPTIONS:
             File path or HTTP URL to TSV file to build cache from [default: https://iptoasn.com/data/ip2asn-v4.tsv.gz]
 ```
 
-h2. asn-lookup
+## asn-lookup
 
 This tool can print out (in different formats) records from ip2asn database for matching IP addressed.
 
@@ -52,7 +53,7 @@ ARGS:
                first column is the IP)
 ```
 
-h3. Example
+### Example
 
 ```
 ./asn-lookup 1.1.1.1 8.8.8.8
