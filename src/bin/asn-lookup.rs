@@ -44,6 +44,14 @@ struct Cli {
     #[structopt(long = "database-cache-path")]
     database_cache_path: Option<PathBuf>,
 
+    /// Input CSV delimiter
+    #[structopt(long = "input-csv-delimiter", default_value = ",")]
+    input_csv_delimiter: String,
+
+    /// Input CSV separator
+    #[structopt(long = "input-csv-ip-column", default_value = "1")]
+    input_csv_ip_column: usize,
+
     /// Output format: table, csv, json, puppet
     #[structopt(short = "o", long = "output", default_value = "table")]
     output: Output,
@@ -57,6 +65,14 @@ fn main() {
     let args = Cli::from_args();
     init_logger(&args.logging, vec![module_path!()]);
 
+    if args.input_csv_delimiter.len() != 1 {
+        panic!("input-csv-delimiter needs to be exactly one character")
+    }
+
+    if args.input_csv_ip_column < 1 {
+        panic!("input-csv-ip-column needs to be greater than 0")
+    }
+
     let db_file_path = args.database_cache_path.unwrap_or_else(|| default_database_cache_path().or_failed_to("get default database cache file path"));
 
     debug!("Loading database cache file from: {}", db_file_path.display());
@@ -68,15 +84,18 @@ fn main() {
 
     let mut stdin_csv = if args.ips.is_empty() {
         Some(csv::ReaderBuilder::new()
+            .delimiter(args.input_csv_delimiter.as_bytes()[0] as u8)
             .from_reader(io::stdin()))
     } else {
         None
     };
 
+    let column = args.input_csv_ip_column - 1;
+
     let ips = args.ips.into_iter()
         .chain(stdin_csv.iter_mut().flat_map(|csv|
             csv.records().or_failed_to("read lookup IP from stdin")
-            .map(|record| record[0].to_owned())));
+            .map(|record| record.get(column).or_failed_to("error accessing CSV column").to_owned())));
 
     let mut ips = ips
         .map(|ip| Ipv4Addr::from_str(&ip)).or_failed_to("parse lookup IP")
