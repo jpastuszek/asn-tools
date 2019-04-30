@@ -31,7 +31,7 @@ OPTIONS:
 This tool can print out (in different formats) records from ip2asn database for matching IP addressed.
 
 ```
-asn-tools 0.1.0
+asn-tools 0.2.0
 Jakub Pastuszek <jpastuszek@protonmail.com>
 Lookup IP in ASN database
 
@@ -39,13 +39,17 @@ USAGE:
     asn-lookup [FLAGS] [OPTIONS] [IP]...
 
 FLAGS:
-        --force-colors    Force colorizing the logger output
-    -h, --help            Prints help information
-    -V, --version         Prints version information
-    -v, --verbose         Verbose mode (-v for Debug, -vv for Trace, -vvv Trace all modules)
+        --errors-only       Only log errors
+        --force-colors      Force colorizing the logger output
+    -h, --help              Prints help information
+    -n, --no-matched-ips    Don't list matched IPs
+    -V, --version           Prints version information
+    -v, --verbose           Verbose mode (-v for INFO, -vv for DEBUG, -vvv for TRACE, -vvvv TRACE all modules)
 
 OPTIONS:
         --database-cache-path <database_cache_path>    Path to database cache file [default: OS dependent location]
+        --input-csv-delimiter <input_csv_delimiter>    Input CSV delimiter [default: ,]
+        --input-csv-ip-column <input_csv_ip_column>    Input CSV separator [default: 1]
     -o, --output <output>                              Output format: table, csv, json, puppet [default: table]
 
 ARGS:
