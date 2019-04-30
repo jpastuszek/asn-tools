@@ -56,6 +56,10 @@ struct Cli {
     #[structopt(short = "o", long = "output", default_value = "table")]
     output: Output,
 
+    /// Don't list matched IPs
+    #[structopt(short = "n", long = "no-matched-ips")]
+    no_matched_ips: bool,
+
     /// List of IP addresses to lookup (can also be read from stdin, one per line; may be in CSV format where first column is the IP)
     #[structopt(name = "IP")]
     ips: Vec<String>,
@@ -111,75 +115,68 @@ fn main() {
         .map(|lookup_ip| (lookup_ip, asn_db.lookup(lookup_ip)))
         .group_by(|(_lookup_ip, record)| record.clone());
 
-    // map out only lookup_ip from each group since key is the record
-    let records = groups.into_iter().map(|(lookup_ip, group)| (lookup_ip, group.map(|(lookup_ip, _)| lookup_ip)));
+    // if true the records will provide empty list of IPs
+    let no_matched_ips = args.no_matched_ips;
 
-    fn print_puppet<'g>(records: impl Iterator<Item = (Option<&'g asn_db::Record>, impl Iterator<Item = Ipv4Addr>)>) {
-        for (record, mut lookup_ips) in records.into_iter() {
+    // map out only lookup_ip from each group since key is the record
+    let records = groups.into_iter().map(|(lookup_ip, group)| (lookup_ip, (!no_matched_ips).as_some(group.map(|(lookup_ip, _)| lookup_ip))));
+
+    fn print_puppet<'g>(records: impl Iterator<Item = (Option<&'g asn_db::Record>, Option<impl Iterator<Item = Ipv4Addr>>)>) {
+        for (record, lookup_ips) in records.into_iter() {
             if let Some(record) = record {
-                println!("'{:?}', # {} {} {} ({})", record.network(), record.country, record.as_number, record.owner, lookup_ips.join(", "));
+                print!("'{:?}', # {} {} {}", record.network(), record.country, record.as_number, record.owner);
+                if let Some(mut matched_ips) = lookup_ips {
+                    println!(" ({})", matched_ips.join(", "));
+                } else {
+                    println!();
+                }
             } else {
-                for lookup_ip in lookup_ips {
-                    println!("'{}', # Not found in the ASN DB", lookup_ip);
+                if let Some(matched_ips) = lookup_ips {
+                    for matched_ips in matched_ips {
+                        println!("'{}', # Not found in the ASN DB", matched_ips);
+                    }
                 }
             }
         }
     }
 
-    fn print_table<'g>(records: impl Iterator<Item = (Option<&'g asn_db::Record>, impl Iterator<Item = Ipv4Addr>)>) {
+    fn print_table<'g>(records: impl Iterator<Item = (Option<&'g asn_db::Record>, Option<impl Iterator<Item = Ipv4Addr>>)>) {
         use tabular::{Table, Row, row};
 
         let mut table = Table::new("{:<} {:<} {:<} {:<} {:<} ");
         table.add_row(row!["Network", "Country", "AS Number", "Owner", "Matched IPs"]);
 
-        for (record, mut lookup_ips) in records.into_iter() {
-            let row = if let Some(record) = record {
-                Row::new()
-                    .with_cell(record.network())
-                    .with_cell(&record.country)
-                    .with_cell(record.as_number)
-                    .with_cell(&record.owner)
-                    .with_cell(lookup_ips.join(", "))
-            } else {
-                Row::new()
-                    .with_cell("-")
-                    .with_cell("-")
-                    .with_cell("-")
-                    .with_cell("-")
-                    .with_cell(lookup_ips.join(", "))
-            };
+        for (record, lookup_ips) in records.into_iter() {
+            let row = Row::new()
+                .with_cell(record.map(|r| r.network().to_string()).unwrap_or("-".to_owned()))
+                .with_cell(record.as_ref().map(|r| r.country.as_str()).unwrap_or("-"))
+                .with_cell(record.map(|r| r.as_number.to_string()).unwrap_or("-".to_owned()))
+                .with_cell(record.as_ref().map(|r| r.owner.as_str()).unwrap_or("-"))
+                .with_cell(lookup_ips.map(|mut ips| ips.join(", ")).unwrap_or("-".to_owned()));
+
             table.add_row(row);
         }
         print!("{}", table);
     }
 
-    fn print_csv<'g>(records: impl Iterator<Item = (Option<&'g asn_db::Record>, impl Iterator<Item = Ipv4Addr>)>) -> Result<(), Problem> {
+    fn print_csv<'g>(records: impl Iterator<Item = (Option<&'g asn_db::Record>, Option<impl Iterator<Item = Ipv4Addr>>)>) -> Result<(), Problem> {
         use csv::WriterBuilder;
 
         let mut csv = WriterBuilder::new().from_writer(std::io::stdout());
         csv.write_record(&["Network", "Country", "AS Number", "Owner", "Matched IPs"])?;
 
-        for (record, mut lookup_ips) in records.into_iter() {
-            if let Some(record) = record {
-                csv.write_field(record.network().to_string())?;
-                csv.write_field(&record.country)?;
-                csv.write_field(record.as_number.to_string())?;
-                csv.write_field(&record.owner)?;
-                csv.write_field(lookup_ips.join(", "))?;
-                csv.write_record(None::<&[u8]>)?;
-            } else {
-                csv.write_field("-")?;
-                csv.write_field("-")?;
-                csv.write_field("-")?;
-                csv.write_field("-")?;
-                csv.write_field(lookup_ips.join(", "))?;
-                csv.write_record(None::<&[u8]>)?;
-            };
+        for (record, lookup_ips) in records.into_iter() {
+            csv.write_field(record.map(|r| r.network().to_string()).unwrap_or("-".to_owned()))?;
+            csv.write_field(record.as_ref().map(|r| r.country.as_str()).unwrap_or("-"))?;
+            csv.write_field(record.map(|r| r.as_number.to_string()).unwrap_or("-".to_owned()))?;
+            csv.write_field(record.as_ref().map(|r| r.owner.as_str()).unwrap_or("-"))?;
+            csv.write_field(lookup_ips.map(|mut ips| ips.join(", ")).unwrap_or("-".to_owned()))?;
+            csv.write_record(None::<&[u8]>)?;
         }
         Ok(())
     }
 
-    fn print_json<'g>(records: impl Iterator<Item = (Option<&'g asn_db::Record>, impl Iterator<Item = Ipv4Addr>)>) {
+    fn print_json<'g>(records: impl Iterator<Item = (Option<&'g asn_db::Record>, Option<impl Iterator<Item = Ipv4Addr>>)>) {
         use json_in_type::{JSONValue, json_object, inlined_json_object};
         use std::cell::RefCell;
 
@@ -189,7 +186,7 @@ fn main() {
                 country: record.map(|record| &record.country),
                 as_number: record.map(|record| record.as_number.to_string()),
                 owner: record.map(|record| &record.owner),
-                matched_ips: RefCell::new(lookup_ips.map(|i| i.to_string())),
+                matched_ips: lookup_ips.map(|lookup_ips| RefCell::new(lookup_ips.map(|i| i.to_string()))),
             }.to_json_string());
         }
     }
