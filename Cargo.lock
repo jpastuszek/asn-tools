@@ -55,7 +55,7 @@ dependencies = [
 
 [[package]]
 name = "asn-tools"
-version = "0.2.0"
+version = "0.2.1-alpha.0"
 dependencies = [
  "app_dirs 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "asn-db 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
