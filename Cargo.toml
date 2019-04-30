@@ -11,7 +11,7 @@ categories = ["command-line-utilities"]
 license = "MIT"
 
 [dependencies]
-cotton = "0.0.0"
+cotton = "0.0.1"
 asn-db = "0.1.1"
 csv = "1.0.7"
 log = "0.4.6"
