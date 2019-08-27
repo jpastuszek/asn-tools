@@ -1,3 +1,5 @@
+[![Latest Version]][crates.io] [![Documentation]][docs.rs] ![License]
+
 Command line tools for looking up IP address for matching ASN information in database from https://iptoasn.com/.
 
 # Usage
@@ -61,7 +63,13 @@ ARGS:
 
 ```
 ./asn-lookup 1.1.1.1 8.8.8.8
-Network    Country AS Number Owner                            Matched IPs 
-1.1.1.0/24 US      13335     CLOUDFLARENET - Cloudflare, Inc. 1.1.1.1     
-8.8.8.0/24 US      15169     GOOGLE - Google LLC              8.8.8.8     
+Network    Country AS Number Owner                            Matched IPs
+1.1.1.0/24 US      13335     CLOUDFLARENET - Cloudflare, Inc. 1.1.1.1
+8.8.8.0/24 US      15169     GOOGLE - Google LLC              8.8.8.8
 ```
+
+[crates.io]: https://crates.io/crates/asn-tools
+[Latest Version]: https://img.shields.io/crates/v/asn-tools.svg
+[Documentation]: https://docs.rs/asn-tools/badge.svg
+[docs.rs]: https://docs.rs/asn-tools
+[License]: https://img.shields.io/crates/l/asn-tools.svg
