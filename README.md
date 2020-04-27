@@ -1,6 +1,6 @@
 [![Latest Version]][crates.io] [![Documentation]][docs.rs] ![License]
 
-Command-line tools for looking up an IP address for matching ASN information in the database from https://iptoasn.com/.
+Command-line tools for lookup of an IP address for matching ASN information in the database from https://iptoasn.com/.
 
 # Usage
 
