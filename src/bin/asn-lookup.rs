@@ -34,13 +34,13 @@ impl FromStr for Output {
     }
 }
 
-/// Lookup IP in ASN database
+/// Lookup an IP address in the ASN database.
 #[derive(Debug, StructOpt)]
 struct Cli {
     #[structopt(flatten)]
     logging: LoggingOpt,
 
-    /// Path to database cache file [default: OS dependent location]
+    /// Path to the database cache file [default: OS dependent location]
     #[structopt(long = "database-cache-path")]
     database_cache_path: Option<PathBuf>,
 
@@ -56,11 +56,11 @@ struct Cli {
     #[structopt(short = "o", long = "output", default_value = "table")]
     output: Output,
 
-    /// Don't list matched IPs
+    /// Don't list matched IP addresses
     #[structopt(short = "n", long = "no-matched-ips")]
     no_matched_ips: bool,
 
-    /// List of IP addresses to lookup (can also be read from stdin, one per line; may be in CSV format where first column is the IP)
+    /// List of IP addresses to lookup (can also be read from stdin, one per line; may be in CSV format where the first column is an IP)
     #[structopt(name = "IP")]
     ips: Vec<String>,
 }

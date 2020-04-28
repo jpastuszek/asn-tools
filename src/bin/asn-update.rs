@@ -53,13 +53,13 @@ impl FromStr for UrlOrFile {
     }
 }
 
-/// Downloads latest TSV file and caches it for use by other tools
+/// Downloads the latest TSV file and caches it for use by the lookup tool.
 #[derive(Debug, StructOpt)]
 struct Cli {
     #[structopt(flatten)]
     logging: LoggingOpt,
 
-    /// Path to database cache file to update [default: OS dependent location]
+    /// Path to the database cache file to update [default: OS dependent location]
     #[structopt(long = "database-cache-path")]
     database_cache_path: Option<PathBuf>,
 

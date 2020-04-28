@@ -7,22 +7,23 @@ Command-line tools for lookup of an IP address for matching ASN information in t
 ## asn-update
 
 ```
-asn-tools 0.1.0
+asn-tools 0.2.1
 Jakub Pastuszek <jpastuszek@protonmail.com>
-Downloads latest TSV file and caches it for use by other tools
+Downloads the latest TSV file and caches it for use by the lookup tool.
 
 USAGE:
     asn-update [FLAGS] [OPTIONS]
 
 FLAGS:
+        --errors-only     Only log errors
         --force-colors    Force colorizing the logger output
     -h, --help            Prints help information
     -V, --version         Prints version information
-    -v, --verbose         Verbose mode (-v for Debug, -vv for Trace, -vvv Trace all modules)
+    -v, --verbose         Verbose mode (-v for INFO, -vv for DEBUG, -vvv for TRACE, -vvvv TRACE all modules)
 
 OPTIONS:
         --database-cache-path <database_cache_path>
-            Path to database cache file to update [default: OS dependent location]
+            Path to the database cache file to update [default: OS dependent location]
 
         --ip2asn-tsv-location <tsv_location>
             File path or HTTP URL to TSV file to build cache from [default: https://iptoasn.com/data/ip2asn-v4.tsv.gz]
@@ -33,9 +34,9 @@ OPTIONS:
 This tool can print out (in different formats) records from ip2asn database for matching IP addressed.
 
 ```
-asn-tools 0.2.0
+asn-tools 0.2.1
 Jakub Pastuszek <jpastuszek@protonmail.com>
-Lookup IP in ASN database
+Lookup an IP address in the ASN database.
 
 USAGE:
     asn-lookup [FLAGS] [OPTIONS] [IP]...
@@ -44,19 +45,19 @@ FLAGS:
         --errors-only       Only log errors
         --force-colors      Force colorizing the logger output
     -h, --help              Prints help information
-    -n, --no-matched-ips    Don't list matched IPs
+    -n, --no-matched-ips    Don't list matched IP addresses
     -V, --version           Prints version information
     -v, --verbose           Verbose mode (-v for INFO, -vv for DEBUG, -vvv for TRACE, -vvvv TRACE all modules)
 
 OPTIONS:
-        --database-cache-path <database_cache_path>    Path to database cache file [default: OS dependent location]
+        --database-cache-path <database_cache_path>    Path to the database cache file [default: OS dependent location]
         --input-csv-delimiter <input_csv_delimiter>    Input CSV delimiter [default: ,]
         --input-csv-ip-column <input_csv_ip_column>    Input CSV separator [default: 1]
     -o, --output <output>                              Output format: table, csv, json, puppet [default: table]
 
 ARGS:
     <IP>...    List of IP addresses to lookup (can also be read from stdin, one per line; may be in CSV format where
-               first column is the IP)
+               the first column is an IP)
 ```
 
 ### Example
