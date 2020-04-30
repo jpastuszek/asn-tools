@@ -45,13 +45,17 @@ struct Cli {
     #[structopt(long)]
     database_cache_path: Option<PathBuf>,
 
-    /// Input CSV delimiter
+    /// Input CSV: character used as a value delimiter
     #[structopt(long, default_value = ",")]
     input_csv_delimiter: String,
 
-    /// Input CSV separator
+    /// Input CSV: number of the column containing an IP address
     #[structopt(long, default_value = "1")]
     input_csv_ip_column: usize,
+
+    /// Input CSV: don't skip first row
+    #[structopt(long)]
+    input_csv_no_header: bool,
 
     /// Output format: table, csv, json, puppet
     #[structopt(long, short = "o", default_value = "table")]
@@ -75,7 +79,7 @@ fn main() -> FinalResult {
     }
 
     if args.input_csv_ip_column < 1 {
-        problem!("input-csv-ip-column needs to be greater than 0")?;
+        problem!("input-csv-ip-column number needs to be greater than 0")?;
     }
 
     let db_file_path = args.database_cache_path.map_or_else(
@@ -100,6 +104,7 @@ fn main() -> FinalResult {
         Some(
             csv::ReaderBuilder::new()
                 .delimiter(args.input_csv_delimiter.as_bytes()[0] as u8)
+                .has_headers(!args.input_csv_no_header)
                 .from_reader(io::stdin()),
         )
     } else {
