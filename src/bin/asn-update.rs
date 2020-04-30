@@ -1,16 +1,17 @@
+use asn_db::*;
 use asn_tools::default_database_cache_path;
 use cotton::prelude::*;
+use flate2::read::GzDecoder;
+use reqwest::Url;
+use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use flate2::read::GzDecoder;
-use asn_db::*;
-use std::ffi::OsString;
-use reqwest::Url;
 
 fn cache_db(asn_db: &Db, db_file_path: &Path) -> Result<(), Problem> {
-    in_context_of(&format!("storing database to file: {}", db_file_path.display()), || {
-        Ok(asn_db.store(BufWriter::new(File::create(db_file_path)?))?)
-    })
+    in_context_of(
+        &format!("storing database to file: {}", db_file_path.display()),
+        || Ok(asn_db.store(BufWriter::new(File::create(db_file_path)?))?),
+    )
 }
 
 fn remove_cache_db(db_file_path: &Path) -> Result<(), Problem> {
@@ -18,15 +19,21 @@ fn remove_cache_db(db_file_path: &Path) -> Result<(), Problem> {
         if db_file_path.is_file() {
             std::fs::remove_file(db_file_path)?;
         } else {
-            Err(Problem::from_error(format!("{} is not a file", db_file_path.display())))?;
+            Err(Problem::from_error(format!(
+                "{} is not a file",
+                db_file_path.display()
+            )))?;
         }
     }
     Ok(())
 }
 
-fn load(path: &Path) -> Result<Box<dyn Read>, Problem> {
+fn load_tsv(path: &Path) -> Result<Box<dyn Read>, Problem> {
     let file = BufReader::new(File::open(path)?);
-    if let Some(_) = path.extension().filter(|ext| ext == &OsString::from("gz").as_os_str()) {
+    if let Some(_) = path
+        .extension()
+        .filter(|ext| ext == &OsString::from("gz").as_os_str())
+    {
         Ok(Box::new(GzDecoder::new(file)))
     } else {
         Ok(Box::new(file))
@@ -47,7 +54,8 @@ enum UrlOrFile {
 impl FromStr for UrlOrFile {
     type Err = Problem;
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        Url::parse(value) .map(UrlOrFile::Url)
+        Url::parse(value)
+            .map(UrlOrFile::Url)
             .or_else(|_| PathBuf::from_str(value).map(UrlOrFile::File))
             .problem_while("parsing as URL or file path")
     }
@@ -64,7 +72,10 @@ struct Cli {
     database_cache_path: Option<PathBuf>,
 
     /// File path or HTTP URL to TSV file to build cache from
-    #[structopt(long = "ip2asn-tsv-location", default_value = "https://iptoasn.com/data/ip2asn-v4.tsv.gz")]
+    #[structopt(
+        long = "ip2asn-tsv-location",
+        default_value = "https://iptoasn.com/data/ip2asn-v4.tsv.gz"
+    )]
     tsv_location: UrlOrFile,
 }
 
@@ -72,16 +83,23 @@ fn main() {
     let args = Cli::from_args();
     init_logger(&args.logging, vec![module_path!()]);
 
-    let db_file_path = args.database_cache_path.unwrap_or_else(|| default_database_cache_path().or_failed_to("get default database cache file path"));
+    let db_file_path = args.database_cache_path.unwrap_or_else(|| {
+        default_database_cache_path().or_failed_to("get default database cache file path")
+    });
 
     let tsv: Box<dyn Read> = match args.tsv_location {
         UrlOrFile::File(tsv_path) => {
-            info!("Loading ip2asn database from TSV file: {}", tsv_path.display());
-            load(&tsv_path).or_failed_to(format!("load TSV from: {}", tsv_path.display()))
-        },
+            info!(
+                "Loading ip2asn database from TSV file: {}",
+                tsv_path.display()
+            );
+            load_tsv(&tsv_path).or_failed_to(format!("load TSV from: {}", tsv_path.display()))
+        }
         UrlOrFile::Url(tsv_url) => {
             info!("Loading ip2asn database from TSV located at: {}", tsv_url);
-            Box::new(request(tsv_url.clone()).or_failed_to(format!("request TSV from: {}", tsv_url)))
+            Box::new(
+                request(tsv_url.clone()).or_failed_to(format!("request TSV from: {}", tsv_url)),
+            )
         }
     };
     let asn_db = Db::form_tsv(tsv).or_failed_to("load ASN database");

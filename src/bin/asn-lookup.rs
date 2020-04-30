@@ -1,16 +1,17 @@
+use asn_db::*;
 use asn_tools::default_database_cache_path;
 use cotton::prelude::*;
+use itertools::Itertools;
 use std::io;
 use std::net::Ipv4Addr;
-use std::path::{PathBuf, Path};
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use itertools::Itertools;
-use asn_db::*;
 
 fn load_cached_db(db_file_path: &Path) -> Result<Db, Problem> {
-    in_context_of(&format!("loading database from file: {}", db_file_path.display()), || {
-        Ok(Db::load(BufReader::new(File::open(db_file_path)?))?)
-    })
+    in_context_of(
+        &format!("loading database from file: {}", db_file_path.display()),
+        || Ok(Db::load(BufReader::new(File::open(db_file_path)?))?),
+    )
 }
 
 #[derive(Debug)]
@@ -77,54 +78,92 @@ fn main() {
         panic!("input-csv-ip-column needs to be greater than 0")
     }
 
-    let db_file_path = args.database_cache_path.unwrap_or_else(|| default_database_cache_path().or_failed_to("get default database cache file path"));
+    let db_file_path = args.database_cache_path.unwrap_or_else(|| {
+        default_database_cache_path().or_failed_to("get default database cache file path")
+    });
 
-    debug!("Loading database cache file from: {}", db_file_path.display());
+    debug!(
+        "Loading database cache file from: {}",
+        db_file_path.display()
+    );
     if !db_file_path.exists() {
-        error!("No database cache file found in '{}', please use asn-update to create one.", db_file_path.display());
+        error!(
+            "No database cache file found in '{}', please use asn-update to create one.",
+            db_file_path.display()
+        );
         std::process::exit(2)
     }
     let asn_db = load_cached_db(&db_file_path).or_failed_to("load database cache file");
 
     let mut stdin_csv = if args.ips.is_empty() {
-        Some(csv::ReaderBuilder::new()
-            .delimiter(args.input_csv_delimiter.as_bytes()[0] as u8)
-            .from_reader(io::stdin()))
+        Some(
+            csv::ReaderBuilder::new()
+                .delimiter(args.input_csv_delimiter.as_bytes()[0] as u8)
+                .from_reader(io::stdin()),
+        )
     } else {
         None
     };
 
     let column = args.input_csv_ip_column - 1;
 
-    let ips = args.ips.into_iter()
-        .chain(stdin_csv.iter_mut().flat_map(|csv|
-            csv.records().or_failed_to("read lookup IP from stdin")
-            .map(|record| record.get(column).or_failed_to("error accessing CSV column").to_owned())));
+    let ips = args
+        .ips
+        .into_iter()
+        .chain(stdin_csv.iter_mut().flat_map(|csv| {
+            csv.records()
+                .or_failed_to("read lookup IP from stdin")
+                .map(|record| {
+                    record
+                        .get(column)
+                        .or_failed_to("error accessing CSV column")
+                        .to_owned()
+                })
+        }));
 
     let mut ips = ips
-        .map(|ip| Ipv4Addr::from_str(&ip)).or_failed_to("parse lookup IP")
+        .map(|ip| Ipv4Addr::from_str(&ip))
+        .or_failed_to("parse lookup IP")
         .collect::<Vec<_>>();
 
-    // prepare input so we can group results later on
+    // Prepare input so we can group results later on
     ips.sort();
     ips.dedup();
 
-    // resolve and group by record
+    // Resolve and group by record
     let groups = ips
         .into_iter()
         .map(|lookup_ip| (lookup_ip, asn_db.lookup(lookup_ip)))
         .group_by(|(_lookup_ip, record)| record.clone());
 
-    // if true the records will provide empty list of IPs
+    // If true the records will provide empty list of IPs
     let no_matched_ips = args.no_matched_ips;
 
-    // map out only lookup_ip from each group since key is the record
-    let records = groups.into_iter().map(|(lookup_ip, group)| (lookup_ip, (!no_matched_ips).as_some(group.map(|(lookup_ip, _)| lookup_ip))));
+    // Map out only lookup_ip from each group since key is the record
+    let records = groups.into_iter().map(|(lookup_ip, group)| {
+        (
+            lookup_ip,
+            (!no_matched_ips).as_some(group.map(|(lookup_ip, _)| lookup_ip)),
+        )
+    });
 
-    fn print_puppet<'g>(records: impl Iterator<Item = (Option<&'g asn_db::Record>, Option<impl Iterator<Item = Ipv4Addr>>)>) {
+    fn print_puppet<'g>(
+        records: impl Iterator<
+            Item = (
+                Option<&'g asn_db::Record>,
+                Option<impl Iterator<Item = Ipv4Addr>>,
+            ),
+        >,
+    ) {
         for (record, lookup_ips) in records.into_iter() {
             if let Some(record) = record {
-                print!("'{:?}', # {} {} {}", record.network(), record.country, record.as_number, record.owner);
+                print!(
+                    "'{:?}', # {} {} {}",
+                    record.network(),
+                    record.country,
+                    record.as_number,
+                    record.owner
+                );
                 if let Some(mut matched_ips) = lookup_ips {
                     println!(" ({})", matched_ips.join(", "));
                 } else {
@@ -140,44 +179,95 @@ fn main() {
         }
     }
 
-    fn print_table<'g>(records: impl Iterator<Item = (Option<&'g asn_db::Record>, Option<impl Iterator<Item = Ipv4Addr>>)>) {
-        use tabular::{Table, Row, row};
+    fn print_table<'g>(
+        records: impl Iterator<
+            Item = (
+                Option<&'g asn_db::Record>,
+                Option<impl Iterator<Item = Ipv4Addr>>,
+            ),
+        >,
+    ) {
+        use tabular::{row, Row, Table};
 
         let mut table = Table::new("{:<} {:<} {:<} {:<} {:<} ");
-        table.add_row(row!["Network", "Country", "AS Number", "Owner", "Matched IPs"]);
+        table.add_row(row![
+            "Network",
+            "Country",
+            "AS Number",
+            "Owner",
+            "Matched IPs"
+        ]);
 
         for (record, lookup_ips) in records.into_iter() {
             let row = Row::new()
-                .with_cell(record.map(|r| r.network().to_string()).unwrap_or("-".to_owned()))
+                .with_cell(
+                    record
+                        .map(|r| r.network().to_string())
+                        .unwrap_or("-".to_owned()),
+                )
                 .with_cell(record.as_ref().map(|r| r.country.as_str()).unwrap_or("-"))
-                .with_cell(record.map(|r| r.as_number.to_string()).unwrap_or("-".to_owned()))
+                .with_cell(
+                    record
+                        .map(|r| r.as_number.to_string())
+                        .unwrap_or("-".to_owned()),
+                )
                 .with_cell(record.as_ref().map(|r| r.owner.as_str()).unwrap_or("-"))
-                .with_cell(lookup_ips.map(|mut ips| ips.join(", ")).unwrap_or("-".to_owned()));
+                .with_cell(
+                    lookup_ips
+                        .map(|mut ips| ips.join(", "))
+                        .unwrap_or("-".to_owned()),
+                );
 
             table.add_row(row);
         }
         print!("{}", table);
     }
 
-    fn print_csv<'g>(records: impl Iterator<Item = (Option<&'g asn_db::Record>, Option<impl Iterator<Item = Ipv4Addr>>)>) -> Result<(), Problem> {
+    fn print_csv<'g>(
+        records: impl Iterator<
+            Item = (
+                Option<&'g asn_db::Record>,
+                Option<impl Iterator<Item = Ipv4Addr>>,
+            ),
+        >,
+    ) -> Result<(), Problem> {
         use csv::WriterBuilder;
 
         let mut csv = WriterBuilder::new().from_writer(std::io::stdout());
         csv.write_record(&["Network", "Country", "AS Number", "Owner", "Matched IPs"])?;
 
         for (record, lookup_ips) in records.into_iter() {
-            csv.write_field(record.map(|r| r.network().to_string()).unwrap_or("-".to_owned()))?;
+            csv.write_field(
+                record
+                    .map(|r| r.network().to_string())
+                    .unwrap_or("-".to_owned()),
+            )?;
             csv.write_field(record.as_ref().map(|r| r.country.as_str()).unwrap_or("-"))?;
-            csv.write_field(record.map(|r| r.as_number.to_string()).unwrap_or("-".to_owned()))?;
+            csv.write_field(
+                record
+                    .map(|r| r.as_number.to_string())
+                    .unwrap_or("-".to_owned()),
+            )?;
             csv.write_field(record.as_ref().map(|r| r.owner.as_str()).unwrap_or("-"))?;
-            csv.write_field(lookup_ips.map(|mut ips| ips.join(", ")).unwrap_or("-".to_owned()))?;
+            csv.write_field(
+                lookup_ips
+                    .map(|mut ips| ips.join(", "))
+                    .unwrap_or("-".to_owned()),
+            )?;
             csv.write_record(None::<&[u8]>)?;
         }
         Ok(())
     }
 
-    fn print_json<'g>(records: impl Iterator<Item = (Option<&'g asn_db::Record>, Option<impl Iterator<Item = Ipv4Addr>>)>) {
-        use json_in_type::{JSONValue, json_object, inlined_json_object};
+    fn print_json<'g>(
+        records: impl Iterator<
+            Item = (
+                Option<&'g asn_db::Record>,
+                Option<impl Iterator<Item = Ipv4Addr>>,
+            ),
+        >,
+    ) {
+        use json_in_type::{inlined_json_object, json_object, JSONValue};
         use std::cell::RefCell;
 
         for (record, lookup_ips) in records.into_iter() {
