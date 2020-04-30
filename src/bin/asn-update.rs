@@ -68,7 +68,7 @@ struct Cli {
     logging: LoggingOpt,
 
     /// Path to the database cache file to update [default: OS dependent location]
-    #[structopt(long = "database-cache-path")]
+    #[structopt(long)]
     database_cache_path: Option<PathBuf>,
 
     /// File path or HTTP URL to TSV file to build cache from

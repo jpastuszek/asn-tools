@@ -12,7 +12,7 @@ categories = ["command-line-utilities"]
 license = "MIT"
 
 [dependencies]
-cotton = "0.0.1"
+cotton = "0.0.9"
 asn-db = "0.1.1"
 csv = "1.0.7"
 log = "0.4.6"
@@ -20,6 +20,6 @@ itertools = "0.7.8"
 app_dirs = "1.2.1"
 reqwest = "0.9.9"
 flate2 = "1.0.6"
-structopt = "0.2.14"
+structopt = "0.3.2"
 tabular = "0.1.2"
 json_in_type = "1.1.1"

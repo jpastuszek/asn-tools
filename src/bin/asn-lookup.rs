@@ -42,23 +42,23 @@ struct Cli {
     logging: LoggingOpt,
 
     /// Path to the database cache file [default: OS dependent location]
-    #[structopt(long = "database-cache-path")]
+    #[structopt(long)]
     database_cache_path: Option<PathBuf>,
 
     /// Input CSV delimiter
-    #[structopt(long = "input-csv-delimiter", default_value = ",")]
+    #[structopt(long, default_value = ",")]
     input_csv_delimiter: String,
 
     /// Input CSV separator
-    #[structopt(long = "input-csv-ip-column", default_value = "1")]
+    #[structopt(long, default_value = "1")]
     input_csv_ip_column: usize,
 
     /// Output format: table, csv, json, puppet
-    #[structopt(short = "o", long = "output", default_value = "table")]
+    #[structopt(long, short = "o", default_value = "table")]
     output: Output,
 
     /// Don't list matched IP addresses
-    #[structopt(short = "n", long = "no-matched-ips")]
+    #[structopt(long, short = "n")]
     no_matched_ips: bool,
 
     /// List of IP addresses to lookup (can also be read from stdin, one per line; may be in CSV format where the first column is an IP)
