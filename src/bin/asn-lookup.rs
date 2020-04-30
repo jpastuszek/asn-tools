@@ -66,21 +66,22 @@ struct Cli {
     ips: Vec<String>,
 }
 
-fn main() {
+fn main() -> FinalResult {
     let args = Cli::from_args();
     init_logger(&args.logging, vec![module_path!()]);
 
     if args.input_csv_delimiter.len() != 1 {
-        panic!("input-csv-delimiter needs to be exactly one character")
+        problem!("input-csv-delimiter needs to be exactly one character")?;
     }
 
     if args.input_csv_ip_column < 1 {
-        panic!("input-csv-ip-column needs to be greater than 0")
+        problem!("input-csv-ip-column needs to be greater than 0")?;
     }
 
-    let db_file_path = args.database_cache_path.unwrap_or_else(|| {
-        default_database_cache_path().or_failed_to("get default database cache file path")
-    });
+    let db_file_path = args.database_cache_path.map_or_else(
+        || default_database_cache_path().problem_while("getting default database cache file path"),
+        Ok,
+    )?;
 
     debug!(
         "Loading database cache file from: {}",
@@ -93,7 +94,7 @@ fn main() {
         );
         std::process::exit(2)
     }
-    let asn_db = load_cached_db(&db_file_path).or_failed_to("load database cache file");
+    let asn_db = load_cached_db(&db_file_path).problem_while("loading database cache file")?;
 
     let mut stdin_csv = if args.ips.is_empty() {
         Some(
@@ -110,21 +111,23 @@ fn main() {
     let ips = args
         .ips
         .into_iter()
+        .map(Ok)
         .chain(stdin_csv.iter_mut().flat_map(|csv| {
-            csv.records()
-                .or_failed_to("read lookup IP from stdin")
-                .map(|record| {
-                    record
-                        .get(column)
-                        .or_failed_to("error accessing CSV column")
-                        .to_owned()
-                })
+            csv.records().map(|record| {
+                record
+                    .problem_while("reading lookup IP from stdin")
+                    .and_then(|record| {
+                        record
+                            .get(column)
+                            .ok_or_problem("Accessing CSV column")
+                            .map(ToOwned::to_owned)
+                    })
+            })
         }));
 
     let mut ips = ips
-        .map(|ip| Ipv4Addr::from_str(&ip))
-        .or_failed_to("parse lookup IP")
-        .collect::<Vec<_>>();
+        .map(|ip| ip.and_then(|ip| Ipv4Addr::from_str(&ip).problem_while("parsing lookup IP")))
+        .collect::<Result<Vec<_>, _>>()?;
 
     // Prepare input so we can group results later on
     ips.sort();
@@ -283,8 +286,10 @@ fn main() {
 
     match args.output {
         Output::Table => print_table(records),
-        Output::Csv => print_csv(records).or_failed_to("print CSV"),
+        Output::Csv => print_csv(records).problem_while("printing CSV")?,
         Output::Json => print_json(records),
         Output::Puppet => print_puppet(records),
     }
+
+    Ok(())
 }

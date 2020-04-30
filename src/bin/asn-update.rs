@@ -40,7 +40,7 @@ fn load_tsv(path: &Path) -> Result<Box<dyn Read>, Problem> {
     }
 }
 
-fn request(url: Url) -> Result<impl Read, Problem> {
+fn fetch(url: Url) -> Result<impl Read, Problem> {
     let response = BufReader::new(reqwest::get(url)?);
     Ok(GzDecoder::new(response))
 }
@@ -79,13 +79,14 @@ struct Cli {
     tsv_location: UrlOrFile,
 }
 
-fn main() {
+fn main() -> FinalResult {
     let args = Cli::from_args();
     init_logger(&args.logging, vec![module_path!()]);
 
-    let db_file_path = args.database_cache_path.unwrap_or_else(|| {
-        default_database_cache_path().or_failed_to("get default database cache file path")
-    });
+    let db_file_path = args.database_cache_path.map_or_else(
+        || default_database_cache_path().problem_while("getting default database cache file path"),
+        Ok,
+    )?;
 
     let tsv: Box<dyn Read> = match args.tsv_location {
         UrlOrFile::File(tsv_path) => {
@@ -93,20 +94,23 @@ fn main() {
                 "Loading ip2asn database from TSV file: {}",
                 tsv_path.display()
             );
-            load_tsv(&tsv_path).or_failed_to(format!("load TSV from: {}", tsv_path.display()))
+            load_tsv(&tsv_path)
+                .problem_while_with(|| format!("loading TSV from: {}", tsv_path.display()))?
         }
         UrlOrFile::Url(tsv_url) => {
             info!("Loading ip2asn database from TSV located at: {}", tsv_url);
             Box::new(
-                request(tsv_url.clone()).or_failed_to(format!("request TSV from: {}", tsv_url)),
+                fetch(tsv_url.clone())
+                    .problem_while_with(|| format!("fetching TSV from: {}", tsv_url))?,
             )
         }
     };
-    let asn_db = Db::form_tsv(tsv).or_failed_to("load ASN database");
+    let asn_db = Db::form_tsv(tsv).problem_while("loading ASN database")?;
 
     info!("Updating cached database file: {}", db_file_path.display());
-    remove_cache_db(&db_file_path).or_failed_to("remove database cache file");
-    cache_db(&asn_db, &db_file_path).or_failed_to("create database cache file");
+    remove_cache_db(&db_file_path).problem_while("removing database cache file")?;
+    cache_db(&asn_db, &db_file_path).problem_while("creating database cache file")?;
 
     info!("Update done");
+    Ok(())
 }
