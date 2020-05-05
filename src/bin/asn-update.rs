@@ -28,7 +28,7 @@ fn remove_cache_db(db_file_path: &Path) -> Result<(), Problem> {
     Ok(())
 }
 
-fn load_tsv(path: &Path) -> Result<Box<dyn Read>, Problem> {
+fn open_file(path: &Path) -> Result<Box<dyn Read>, Problem> {
     let file = BufReader::new(File::open(path)?);
     if let Some(_) = path
         .extension()
@@ -40,7 +40,7 @@ fn load_tsv(path: &Path) -> Result<Box<dyn Read>, Problem> {
     }
 }
 
-fn fetch(url: Url) -> Result<impl Read, Problem> {
+fn fetch_url(url: Url) -> Result<impl Read, Problem> {
     let response = BufReader::new(reqwest::get(url)?);
     Ok(GzDecoder::new(response))
 }
@@ -94,13 +94,13 @@ fn main() -> FinalResult {
                 "Loading ip2asn database from TSV file: {}",
                 tsv_path.display()
             );
-            load_tsv(&tsv_path)
+            open_file(&tsv_path)
                 .problem_while_with(|| format!("loading TSV from: {}", tsv_path.display()))?
         }
         UrlOrFile::Url(tsv_url) => {
             info!("Loading ip2asn database from TSV located at: {}", tsv_url);
             Box::new(
-                fetch(tsv_url.clone())
+                fetch_url(tsv_url.clone())
                     .problem_while_with(|| format!("fetching TSV from: {}", tsv_url))?,
             )
         }
