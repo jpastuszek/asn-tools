@@ -72,7 +72,7 @@ dependencies = [
 
 [[package]]
 name = "asn-tools"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "app_dirs",
  "asn-db",
